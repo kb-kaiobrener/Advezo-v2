@@ -1,0 +1,87 @@
+@import "tailwindcss";
+
+/* ─── Base ─────────────────────────────────────────── */
+
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+
+  /* ── Advezo Brand Blue ──────────────────────────── */
+  --adv-brand-50:  #EFF6FF;
+  --adv-brand-100: #DBEAFE;
+  --adv-brand-200: #BFDBFE;
+  --adv-brand-500: #3B82F6;
+  --adv-brand-600: #2563EB;
+  --adv-brand-700: #1D4ED8;
+  --adv-brand-800: #1E40AF;
+  --adv-brand-900: #1E3A8A;
+
+  /* ── Health: Good ───────────────────────────────── */
+  --adv-health-good:        #16A34A;
+  --adv-health-good-bg:     #DCFCE7;
+  --adv-health-good-text:   #15803D;
+  --adv-health-good-border: #BBF7D0;
+
+  /* ── Health: Warning ────────────────────────────── */
+  --adv-health-warning:        #D97706;
+  --adv-health-warning-bg:     #FEF9C3;
+  --adv-health-warning-text:   #B45309;
+  --adv-health-warning-border: #FDE68A;
+
+  /* ── Health: Critical ───────────────────────────── */
+  --adv-health-critical:        #DC2626;
+  --adv-health-critical-bg:     #FEE2E2;
+  --adv-health-critical-text:   #B91C1C;
+  --adv-health-critical-border: #FECACA;
+
+  /* ── Platform Colors (imutáveis) ────────────────── */
+  --adv-platform-meta:      #1877F2;
+  --adv-platform-google:    #4285F4;
+  --adv-platform-whatsapp:  #25D366;
+}
+
+/* ─── Tailwind 4 Theme Tokens ────────────────────── */
+/* Equivalente a tailwind.config.ts theme.extend.colors */
+
+@theme inline {
+  /* Base */
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+
+  /* Brand */
+  --color-brand-50:  var(--adv-brand-50);
+  --color-brand-100: var(--adv-brand-100);
+  --color-brand-200: var(--adv-brand-200);
+  --color-brand-500: var(--adv-brand-500);
+  --color-brand-600: var(--adv-brand-600);
+  --color-brand-700: var(--adv-brand-700);
+  --color-brand-800: var(--adv-brand-800);
+  --color-brand-900: var(--adv-brand-900);
+
+  /* Health */
+  --color-health-good:            var(--adv-health-good);
+  --color-health-good-bg:         var(--adv-health-good-bg);
+  --color-health-good-text:       var(--adv-health-good-text);
+  --color-health-good-border:     var(--adv-health-good-border);
+  --color-health-warning:         var(--adv-health-warning);
+  --color-health-warning-bg:      var(--adv-health-warning-bg);
+  --color-health-warning-text:    var(--adv-health-warning-text);
+  --color-health-warning-border:  var(--adv-health-warning-border);
+  --color-health-critical:        var(--adv-health-critical);
+  --color-health-critical-bg:     var(--adv-health-critical-bg);
+  --color-health-critical-text:   var(--adv-health-critical-text);
+  --color-health-critical-border: var(--adv-health-critical-border);
+
+  /* Platform */
+  --color-platform-meta:      var(--adv-platform-meta);
+  --color-platform-google:    var(--adv-platform-google);
+  --color-platform-whatsapp:  var(--adv-platform-whatsapp);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans, system-ui, sans-serif);
+}

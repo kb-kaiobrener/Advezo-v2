@@ -1,0 +1,190 @@
+epic_id: "EPIC-01"
+epic_name: "Fundação e Navegação"
+epic_path: "docs/stories/epics/epic-01-fundacao-navegacao"
+created_by: "@pm (Morgan)"
+created_at: "2026-06-25"
+status: "done"
+
+goal: >
+  Estabelecer infraestrutura técnica completa (Next.js/Vercel + Supabase + Railway skeleton)
+  e entregar a primeira fatia de valor visível: autenticação multi-tenant, design system,
+  navegação lateral com 7 itens, seletor de cliente/conta e dashboard com indicadores de saúde.
+
+product_docs:
+  prd: "docs/prd.md"
+  architecture: "docs/architecture.md"
+  ux_spec: "docs/ux-design-spec.md"
+
+execution_mode: "yolo"  # default atualizado 2026-06-25 — velocidade máxima para Epic 1 restante
+wave_execution_modes:
+  wave_1: "yolo"         # scaffolding/infra — baixo risco, sem lógica de negócio
+  wave_2: "interactive"  # auth + design system — revisão manual (já concluída)
+  wave_3: "yolo"         # UI/sidebar — sem RLS nova, sem dado sensível; auto-release
+  wave_4: "yolo"         # dashboard — scaffolding puro; auto-release
+qa_gate_level:
+  wave_3: "simplified"   # build + typecheck + testes passando; sem relatório linha por linha
+  wave_4: "simplified"
+auto_release_waves: [3, 4]  # gate PASS → próxima wave inicia automaticamente
+state_file: ".aiox/epic-01-state.yaml"
+
+# ─────────────────────────────────────────────
+# STORIES
+# ─────────────────────────────────────────────
+stories:
+  - id: "1.1"
+    title: "Setup de Projeto e Infraestrutura Base"
+    path: "docs/stories/epics/epic-01-fundacao-navegacao/1.1.story.md"
+    executor: "@dev"
+    quality_gate: "@architect"
+    status: "done"
+    estimated_effort: "M"  # S/M/L/XL
+    completed_at: "2026-06-25"
+
+  - id: "1.2"
+    title: "Autenticação Multi-Tenant e Estrutura de Workspace"
+    path: "docs/stories/epics/epic-01-fundacao-navegacao/1.2.story.md"
+    executor: "@dev"
+    quality_gate: "@architect"
+    status: "done"
+    estimated_effort: "M"
+    completed_at: "2026-06-25"
+
+  - id: "1.3"
+    title: "Design System e Componentes Base"
+    path: "docs/stories/epics/epic-01-fundacao-navegacao/1.3.story.md"
+    executor: "@dev"
+    quality_gate: "@architect"
+    status: "done"
+    estimated_effort: "M"
+    completed_at: "2026-06-25"
+
+  - id: "1.4"
+    title: "Gestão de Clientes (CRUD)"
+    path: "docs/stories/epics/epic-01-fundacao-navegacao/1.4.story.md"
+    executor: "@dev"
+    quality_gate: "@architect"
+    status: "done"
+    estimated_effort: "M"
+    completed_at: "2026-06-25"
+
+  - id: "1.5"
+    title: "Layout de Navegação Lateral e Seletor de Cliente"
+    path: "docs/stories/epics/epic-01-fundacao-navegacao/1.5.story.md"
+    executor: "@dev"
+    quality_gate: "@architect"
+    status: "done"
+    estimated_effort: "L"
+    completed_at: "2026-06-26"
+
+  - id: "1.6"
+    title: "Dashboard Principal com Indicadores de Saúde"
+    path: "docs/stories/epics/epic-01-fundacao-navegacao/1.6.story.md"
+    executor: "@dev"
+    quality_gate: "@architect"
+    status: "done"
+    estimated_effort: "M"
+    completed_at: "2026-06-26"
+
+# ─────────────────────────────────────────────
+# WAVES — Ordem de execução
+# ─────────────────────────────────────────────
+waves:
+  - wave: 1
+    name: "Fundação"
+    description: "Setup do monorepo, infra e dependências base. Todas as outras waves dependem desta."
+    mode: "sequential"
+    checkpoint_required: true
+    stories: ["1.1"]
+    gate:
+      validator: "@architect"
+      criteria:
+        - "Monorepo pnpm workspaces inicializado"
+        - "Next.js 15+ App Router sem erros de build"
+        - "normalizePhone() com 100% cobertura de testes"
+        - "Migração inicial do banco (workspaces + workspace_members + workspace_settings) pronta"
+        - "lint + typecheck passando na raiz"
+
+  - wave: 2
+    name: "Auth + Design System"
+    description: "Paralelo: auth multi-tenant (1.2) e design system (1.3) não conflitam em arquivos."
+    mode: "parallel"
+    checkpoint_required: true
+    stories: ["1.2", "1.3"]
+    gate:
+      validator: "@architect"
+      criteria:
+        - "Login/register/onboarding funcionando com Supabase Auth"
+        - "RLS ativa em workspaces, workspace_members, workspace_settings"
+        - "Middleware protegendo rotas (dashboard)/"
+        - "@theme inline em globals.css com tokens brand + health + platform (Tailwind 4 — não usa tailwind.config.ts)"
+        - "StatusBadge, PlatformIcon, HealthBar, EmptyState, LoadingSpinner implementados"
+        - "Página /design mostrando todos os componentes"
+        - "Contraste WCAG AA validado para tokens de health"
+
+  - wave: 3
+    name: "Clients CRUD + Navigation"
+    description: "Sequencial: CRUD de clientes (1.4) deve completar antes da sidebar (1.5) pois seletor popula de clients."
+    mode: "sequential"
+    checkpoint_required: true
+    stories: ["1.4", "1.5"]
+    gate:
+      validator: "@architect"
+      criteria:
+        - "CRUD completo de clientes com RLS"
+        - "Listagem com EmptyState, paginação e StatusBadge"
+        - "Sidebar 240px/56px com 7 nav items + Configurações"
+        - "ClientSelector popula de clients reais"
+        - "AdAccountSelector condicional (aparece após client selecionado)"
+        - "Layout (dashboard)/layout.tsx com Sidebar + TopBar"
+        - "Responsivo: colapsa em < 768px"
+
+  - wave: 4
+    name: "Dashboard"
+    description: "Dashboard principal com health cards — depende de 1.4 (dados de clients) e 1.5 (layout)."
+    mode: "sequential"
+    checkpoint_required: true
+    stories: ["1.6"]
+    gate:
+      validator: "@architect"
+      criteria:
+        - "Dashboard é tela inicial após login"
+        - "4 cards de métricas resumidas"
+        - "Grid de ClientHealthCard com health score e cores"
+        - "EmptyState quando sem clientes ativos"
+        - "Skeleton loading sem layout shift"
+        - "calculateHealthScore() testado com casos de stub"
+
+# ─────────────────────────────────────────────
+# CONSTRAINTS
+# ─────────────────────────────────────────────
+constraints:
+  global_blockers:
+    - description: "Story 3.1 (Migração Baileys) deve ser executada antes de qualquer story do Epic 3"
+      affects: "epic-03 only"
+      note: "Não afeta Epic 1"
+
+  security_non_negotiable:
+    - "HMAC-SHA256 por workspace para hash de phone (não implementado neste epic — referência futura)"
+    - "SUPABASE_SERVICE_ROLE_KEY nunca exposta em NEXT_PUBLIC_*"
+    - "RLS ativa em todas as tabelas desde a primeira migração"
+    - "CI deve bloquear NEXT_PUBLIC_*SERVICE_ROLE* e NEXT_PUBLIC_*SECRET*"
+
+  constitution_gates:
+    - article: "I (CLI First)"
+      check: "Scaffold via CLI (create-next-app, shadcn)"
+    - article: "IV (No Invention)"
+      check: "Todos os ACs rastreáveis ao PRD"
+    - article: "VI (Absolute Imports)"
+      check: "@advezo/* para packages, @/* para apps/web"
+
+# ─────────────────────────────────────────────
+# POST-EPIC
+# ─────────────────────────────────────────────
+post_epic:
+  next_epic: "EPIC-02"
+  next_epic_name: "Gestão de Mídia Paga"
+  trigger: "QA gate Wave 4 PASS"
+  handoff_notes: >
+    Após Epic 1 completo: infra, auth, design system, nav e dashboard estão prontos.
+    Epic 2 pode começar imediatamente (Meta/Google integrations).
+    Lembrar: Story 3.1 (Baileys migration) é pré-requisito para Epic 3, não Epic 2.
