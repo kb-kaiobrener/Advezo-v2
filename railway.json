@@ -1,0 +1,17 @@
+{
+  "$schema": "https://railway.app/railway.schema.json",
+  "cron": [
+    {
+      "command": "curl -X POST $APP_URL/api/sync/meta -H \"x-cron-secret: $CRON_SECRET\"",
+      "schedule": "0 6 * * *"
+    },
+    {
+      "command": "curl -X POST $APP_URL/api/sync/google -H \"x-cron-secret: $CRON_SECRET\"",
+      "schedule": "0 6 * * *"
+    },
+    {
+      "command": "curl -X POST $APP_URL/api/alerts/detect -H \"x-cron-secret: $CRON_SECRET\"",
+      "schedule": "0 7 * * *"
+    }
+  ]
+}

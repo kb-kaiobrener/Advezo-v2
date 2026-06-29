@@ -32,6 +32,9 @@ importers:
       '@advezo/types':
         specifier: workspace:*
         version: link:../../packages/types
+      '@advezo/utils':
+        specifier: workspace:*
+        version: link:../../packages/utils
       '@base-ui/react':
         specifier: ^1.6.0
         version: 1.6.0(@types/react@19.2.17)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)

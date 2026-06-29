@@ -697,7 +697,7 @@ Deduplicação: Meta deduplica por event_id em janela de 7 dias
 ### Extensions & Helper
 
 ```sql
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+-- UUIDs use gen_random_uuid() (native to PostgreSQL 13+, no extension required).
 
 CREATE OR REPLACE FUNCTION auth_workspace_id() RETURNS uuid AS $$
   SELECT (auth.jwt() -> 'user_metadata' ->> 'workspace_id')::uuid;
@@ -762,7 +762,7 @@ pnpm --filter web vitest run src/__tests__/integration/auth-workspace-id.test.ts
 ```sql
 -- WORKSPACES
 CREATE TABLE workspaces (
-  id         uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id         uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   name       text NOT NULL,
   slug       text UNIQUE NOT NULL,
   plan       text NOT NULL DEFAULT 'free',
@@ -774,7 +774,7 @@ CREATE POLICY workspace_self ON workspaces USING (id = auth_workspace_id());
 
 -- WORKSPACE_MEMBERS
 CREATE TABLE workspace_members (
-  id           uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id           uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   workspace_id uuid NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
   user_id      uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   role         text NOT NULL CHECK (role IN ('owner', 'admin', 'viewer')),
@@ -787,7 +787,7 @@ CREATE POLICY workspace_isolation ON workspace_members USING (workspace_id = aut
 
 -- CLIENTS
 CREATE TABLE clients (
-  id            uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   workspace_id  uuid NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
   name          text NOT NULL,
   document      text,
@@ -802,7 +802,7 @@ CREATE POLICY workspace_isolation ON clients USING (workspace_id = auth_workspac
 
 -- AD_ACCOUNTS (dados operacionais — sem tokens)
 CREATE TABLE ad_accounts (
-  id                  uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id                  uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   workspace_id        uuid NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
   client_id           uuid REFERENCES clients(id) ON DELETE SET NULL,
   platform            text NOT NULL CHECK (platform IN ('meta', 'google')),
@@ -820,7 +820,7 @@ CREATE POLICY workspace_isolation ON ad_accounts USING (workspace_id = auth_work
 
 -- AD_ACCOUNT_CREDENTIALS (service key only — NUNCA exposto ao browser)
 CREATE TABLE ad_account_credentials (
-  id                       uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id                       uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   ad_account_id            uuid NOT NULL UNIQUE REFERENCES ad_accounts(id) ON DELETE CASCADE,
   access_token_encrypted   text NOT NULL,
   refresh_token_encrypted  text,
@@ -834,7 +834,7 @@ CREATE POLICY deny_all ON ad_account_credentials USING (false);
 
 -- CAMPAIGNS
 CREATE TABLE campaigns (
-  id                   uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id                   uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   workspace_id         uuid NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
   ad_account_id        uuid NOT NULL REFERENCES ad_accounts(id) ON DELETE CASCADE,
   external_campaign_id text NOT NULL,
@@ -855,7 +855,7 @@ CREATE POLICY workspace_isolation ON campaigns USING (workspace_id = auth_worksp
 
 -- AD_SETS
 CREATE TABLE ad_sets (
-  id                 uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id                 uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   workspace_id       uuid NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
   campaign_id        uuid NOT NULL REFERENCES campaigns(id) ON DELETE CASCADE,
   external_ad_set_id text NOT NULL,
@@ -871,7 +871,7 @@ CREATE POLICY workspace_isolation ON ad_sets USING (workspace_id = auth_workspac
 
 -- ADS
 CREATE TABLE ads (
-  id             uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id             uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   workspace_id   uuid NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
   ad_set_id      uuid NOT NULL REFERENCES ad_sets(id) ON DELETE CASCADE,
   external_ad_id text NOT NULL,
@@ -886,7 +886,7 @@ CREATE POLICY workspace_isolation ON ads USING (workspace_id = auth_workspace_id
 
 -- CAMPAIGN_INSIGHTS
 CREATE TABLE campaign_insights (
-  id           uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id           uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   workspace_id uuid NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
   campaign_id  uuid NOT NULL REFERENCES campaigns(id) ON DELETE CASCADE,
   date         date NOT NULL,
@@ -905,7 +905,7 @@ CREATE POLICY workspace_isolation ON campaign_insights USING (workspace_id = aut
 
 -- TRACKED_LINKS
 CREATE TABLE tracked_links (
-  id              uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   workspace_id    uuid NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
   ad_account_id   uuid REFERENCES ad_accounts(id) ON DELETE SET NULL,
   campaign_id     uuid REFERENCES campaigns(id) ON DELETE SET NULL,
@@ -929,7 +929,7 @@ CREATE POLICY workspace_isolation ON tracked_links USING (workspace_id = auth_wo
 
 -- TRACKED_CLICKS
 CREATE TABLE tracked_clicks (
-  id                uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id                uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   workspace_id      uuid NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
   tracked_link_id   uuid NOT NULL REFERENCES tracked_links(id) ON DELETE CASCADE,
   phone_number_hash text,      -- preenchido APÓS match (não no clique)
@@ -947,7 +947,7 @@ CREATE POLICY workspace_isolation ON tracked_clicks USING (workspace_id = auth_w
 
 -- WHATSAPP_ACCOUNTS
 CREATE TABLE whatsapp_accounts (
-  id                    uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id                    uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   workspace_id          uuid NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
   phone_number_display  text NOT NULL,
   session_file_path     text,
@@ -965,7 +965,7 @@ CREATE POLICY workspace_isolation ON whatsapp_accounts USING (workspace_id = aut
 
 -- CONVERSATIONS
 CREATE TABLE conversations (
-  id                        uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id                        uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   workspace_id              uuid NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
   whatsapp_account_id       uuid NOT NULL REFERENCES whatsapp_accounts(id) ON DELETE CASCADE,
   phone_number_hash         text NOT NULL,
@@ -991,7 +991,7 @@ CREATE POLICY workspace_isolation ON conversations USING (workspace_id = auth_wo
 
 -- CONVERSATION_MESSAGES (LGPD: purga em 90 dias)
 CREATE TABLE conversation_messages (
-  id              uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   workspace_id    uuid NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
   conversation_id uuid NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
   direction       text NOT NULL CHECK (direction IN ('inbound', 'outbound')),
@@ -1004,7 +1004,7 @@ CREATE POLICY workspace_isolation ON conversation_messages USING (workspace_id =
 
 -- CONVERSATION_CLASSIFICATION_QUEUE
 CREATE TABLE conversation_classification_queue (
-  id                    uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id                    uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   workspace_id          uuid NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
   conversation_id       uuid NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
   status                text NOT NULL DEFAULT 'pending'
@@ -1021,7 +1021,7 @@ CREATE POLICY workspace_isolation ON conversation_classification_queue
 
 -- CONVERSION_EVENTS
 CREATE TABLE conversion_events (
-  id                     uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id                     uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   workspace_id           uuid NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
   conversation_id        uuid NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
   platform               text NOT NULL CHECK (platform IN ('meta', 'google')),
@@ -1069,7 +1069,7 @@ CREATE TRIGGER on_workspace_created
 
 -- AI_CHAT_SESSIONS (Story 7.2 — múltiplas conversas distintas por usuário)
 CREATE TABLE ai_chat_sessions (
-  id              uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   workspace_id    uuid NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
   user_id         uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   ad_account_id   uuid REFERENCES ad_accounts(id) ON DELETE SET NULL,
@@ -1082,7 +1082,7 @@ CREATE POLICY workspace_isolation ON ai_chat_sessions USING (workspace_id = auth
 
 -- AI_CHAT_MESSAGES
 CREATE TABLE ai_chat_messages (
-  id         uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id         uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   workspace_id uuid NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
   session_id uuid NOT NULL REFERENCES ai_chat_sessions(id) ON DELETE CASCADE,
   role       text NOT NULL CHECK (role IN ('user', 'assistant')),
@@ -1095,7 +1095,7 @@ CREATE POLICY workspace_isolation ON ai_chat_messages USING (workspace_id = auth
 -- RETENTION_JOBS (auditoria LGPD — sem RLS, acesso interno via service key)
 -- Não contém dado pessoal; apenas metadados de execução de job. Decisão consciente.
 CREATE TABLE retention_jobs (
-  id               uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id               uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   job_type         text NOT NULL,
   started_at       timestamptz NOT NULL DEFAULT now(),
   completed_at     timestamptz,
@@ -1159,7 +1159,83 @@ ip_hash        = HMAC-SHA256(ip, workspace_salt)
 
 ---
 
-## 10. Frontend Architecture
+## 10. Estratégia de Sandbox e Testes de Integração
+
+Esta seção define a estratégia oficial de sandbox para as integrações de anúncio do **Epic 2** — **Meta Ads** e **Google Ads**. O objetivo é garantir que nenhum teste, em nenhum ambiente, toque contas de anúncio reais de clientes, e que CI nunca disponha de credenciais de produção. A integração Anthropic (sandbox/mocks de classificação) é tratada no Epic 5 e está fora do escopo desta seção.
+
+> Esta seção complementa a **Seção 7 — External APIs**, que define o toggle `MOCK_EXTERNAL_APIS` por ambiente. Aqui detalhamos o mecanismo concreto de cada sandbox de plataforma e as variáveis de ambiente necessárias para as Stories 2.1–2.4.
+
+> ⚠️ **Chave de criptografia por ambiente:** `TOKEN_ENCRYPTION_KEY` DEVE ser diferente entre
+> desenvolvimento, staging e produção. Nunca reutilizar a chave da v1 do Advezo (NFR-7).
+> Gerar com: `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`
+
+### 10.1 Meta Ads Sandbox
+
+**Mecanismo:** **Facebook Developer App** em modo desenvolvimento + **Meta Test Ad Account** — uma conta de anúncios de teste gratuita disponível em qualquer Business Manager. A Test Ad Account aceita o fluxo OAuth completo e expõe a Marketing API sem gastar verba real nem afetar entregas reais.
+
+**Variáveis de ambiente:**
+
+| Variável | Descrição | Restrição |
+|----------|-----------|-----------|
+| `META_APP_ID` | App ID do Facebook Developer App | — |
+| `META_APP_SECRET` | App Secret do Developer App | **NUNCA** em `NEXT_PUBLIC_*` — server-only |
+| `META_TEST_AD_ACCOUNT_ID` | ID da conta de teste (formato `act_XXXXXXXXXX`) | Apenas dev/staging |
+
+**Garantia anti-produção (como assegurar que testes nunca tocam contas reais):**
+- Verificar `process.env.NODE_ENV !== 'production'` antes de qualquer escrita real via Marketing API em fluxo de teste, **OU**
+- Prefixar o `external_account_id` da fixture de teste com `test_` ao popular dados de teste — qualquer conta cujo `external_account_id` não comece com `test_` é, por convenção, uma conta candidata a produção e não deve ser alvo de teste automatizado.
+
+**Nota sobre o modo desenvolvimento:** o Developer App em modo desenvolvimento limita o OAuth a usuários que foram adicionados explicitamente como **testadores** (Testers/Roles) no painel do Meta for Developers. Usuários fora dessa lista recebem erro de autorização — comportamento esperado, não bug.
+
+### 10.2 Google Ads Sandbox
+
+**Mecanismo:** **Google Ads API test account** — uma conta especial criada via Google Ads API Center com `is_test_account: true`. Test accounts não servem anúncios reais e não consomem orçamento, mas expõem a API completa para o fluxo OAuth + sync.
+
+**Developer Token — níveis de acesso (requisito humano PC-03):**
+- Em modo teste, o Developer Token opera em nível **"test"** (aprovação automática) — suficiente para conectar e sincronizar contas de teste.
+- **Produção requer aprovação manual pela Google**, um processo externo ao sistema com prazo variável. Essa aprovação é uma **ação humana fora do sistema**, documentada como **PC-03** no `EPIC-02-EXECUTION.yaml` (`required_before: wave_2`). A Story 2.2 prossegue em sandbox; a Story 2.4 só vai a produção com o Developer Token de produção aprovado.
+
+**Variáveis de ambiente:**
+
+| Variável | Descrição | Restrição |
+|----------|-----------|-----------|
+| `GOOGLE_CLIENT_ID` | Google OAuth client ID | — |
+| `GOOGLE_CLIENT_SECRET` | Google OAuth client secret | **NUNCA** em `NEXT_PUBLIC_*` — server-only |
+| `GOOGLE_ADS_DEVELOPER_TOKEN` | Developer Token (nível test ou produção) | server-only |
+| `GOOGLE_ADS_TEST_CUSTOMER_ID` | Customer ID da conta de teste | Apenas dev/staging |
+
+**Refresh token em sandbox:** usar o fluxo OAuth normal. O refresh token **também precisa ser criptografado mesmo em teste** (AES-256-GCM, via `packages/utils/src/crypto.ts`). Razão: manter um único code path entre teste e produção — se o teste pulasse a criptografia, a divergência mascararia bugs de encrypt/decrypt que só apareceriam em produção.
+
+### 10.3 Regra Geral Anti-Produção para CI
+
+- **CI nunca deve ter credenciais de produção Meta/Google.** Os secrets de produção vivem apenas nos dashboards de cada ambiente (Vercel/Railway prod), nunca no GitHub Actions usado por PRs.
+- **Variáveis de CI:** somente sandbox credentials ou mocks. Testes unitários usam **MSW** (Mock Service Worker) — sem rede real.
+- **Testes de integração que precisam de API real** (sandbox) usam `describe.runIf(hasSandboxCredentials)` — o mesmo padrão do `auth-workspace-id.test.ts` já existente: quando as credenciais de sandbox não estão presentes no ambiente, o bloco é pulado em vez de falhar; quando presentes (staging), roda contra a API de teste real.
+
+```typescript
+// Padrão estabelecido — espelha auth-workspace-id.test.ts
+const hasSandboxCredentials =
+  !!process.env.META_TEST_AD_ACCOUNT_ID && !!process.env.META_APP_SECRET
+
+describe.runIf(hasSandboxCredentials)('Meta OAuth — integração sandbox', () => {
+  // roda apenas com credenciais de Test Ad Account presentes (staging)
+})
+```
+
+> **Distinção importante:** `SKIP` por ausência de credenciais é aceitável em CI de PR (unit-only). NÃO é aceitável como resultado de gate para staging/produção das Waves 1 e 2 — lá os testes de integração contra sandbox são obrigatórios (consistente com o gate de deploy da Seção 14 — Development Workflow).
+
+### 10.4 Resumo por Ambiente
+
+| Ambiente | Meta | Google | Credenciais |
+|----------|------|--------|-------------|
+| local (dev) | `MOCK_EXTERNAL_APIS=true` | `MOCK_EXTERNAL_APIS=true` | Nenhuma real necessária |
+| CI (PR) | Mocks (MSW) | Mocks (MSW) | Nenhuma — `runIf` pula integração |
+| staging | Meta Test Ad Account | Google test customer (`is_test_account`) | Sandbox apenas |
+| production | Contas reais dos clientes | Contas reais (Developer Token aprovado — PC-03) | Produção, distintas de dev (NFR-7) |
+
+---
+
+## 11. Frontend Architecture
 
 ### Estrutura de Rotas
 
@@ -1227,7 +1303,7 @@ return <HydrationBoundary state={dehydrate(queryClient)}>
 
 ---
 
-## 11. Backend Architecture
+## 12. Backend Architecture
 
 ### Supabase Client Factory — 3 Modos
 
@@ -1352,7 +1428,7 @@ export async function GET(req: NextRequest, { params }: { params: { code: string
 
 ---
 
-## 12. Unified Project Structure
+## 13. Unified Project Structure
 
 ```
 advezo-v2/
@@ -1432,7 +1508,7 @@ advezo-v2/
 
 ---
 
-## 13. Development Workflow
+## 14. Development Workflow
 
 ### Branch Strategy
 
@@ -1588,7 +1664,7 @@ steps:
 
 ---
 
-## 14. Deployment Architecture
+## 15. Deployment Architecture
 
 ### Pipeline Completo
 
@@ -1647,9 +1723,42 @@ Frequência: 5 min — alerta após 2 falhas consecutivas
 Canal: email + webhook WhatsApp para ops
 ```
 
+### Cron de Sync de Campanhas Meta (Story 2.3)
+
+Sincronização diária de campanhas e métricas Meta Ads via cron Railway.
+
+```
+Schedule:  0 6 * * *          (06:00 UTC diário)
+Método:    POST https://<app-url>/api/sync/meta
+Header:    x-cron-secret: $CRON_SECRET   (401 se ausente/diferente)
+Resposta:  { synced: N, errors: M, accounts: [...] }
+```
+
+Configuração em `railway.json` (raiz do repositório):
+
+```json
+{
+  "cron": [
+    {
+      "command": "curl -X POST $APP_URL/api/sync/meta -H \"x-cron-secret: $CRON_SECRET\"",
+      "schedule": "0 6 * * *"
+    }
+  ]
+}
+```
+
+O endpoint itera todas as `ad_accounts` com `platform='meta'` e `status='active'`,
+chamando `syncMetaAccount(adAccountId, workspaceId)` para cada uma. Falhas
+individuais não abortam o lote — cada erro é gravado em `sync_errors` e reflete no
+`status` da conta (`expired` para token #190, `error` para os demais), nunca de
+forma silenciosa (NFR-4).
+
+> **Variável `CRON_SECRET`** (mín. 32 chars, distinta por ambiente — NFR-7) deve
+> estar configurada tanto no serviço da aplicação quanto no job de cron do Railway.
+
 ---
 
-## 15. Security & Performance
+## 16. Security & Performance
 
 ### Proteção de Dados
 
@@ -1666,7 +1775,7 @@ export function hashPhone(phone: string, workspaceId: string): string {
 }
 ```
 
-**Tokens de ad accounts:** AES-256 no nível da aplicação antes do INSERT; `TOKEN_ENCRYPTION_KEY` no Railway Dashboard; tokens nunca retornados em API responses.
+**Tokens de ad accounts:** **AES-256-GCM** no nível da aplicação antes do INSERT (NFR-1), via `encryptToken`/`decryptToken` em `packages/utils/src/crypto.ts`; chave em `TOKEN_ENCRYPTION_KEY` (32 bytes / 64 hex chars), distinta por ambiente (NFR-7) e nunca em `NEXT_PUBLIC_*`; tokens nunca retornados em API responses. O formato persistido é `<iv_hex>:<authTag_hex>:<ciphertext_hex>` — o auth tag GCM garante integridade (detecta adulteração no decrypt).
 
 **Códigos de link rastreável:** `crypto.randomBytes(8).toString('base64url')` — criptograficamente aleatório, espaço amostral inviável para enumeração/brute-force.
 
@@ -1712,7 +1821,7 @@ const securityHeaders = [
 
 ---
 
-## 16. Testing Strategy
+## 17. Testing Strategy
 
 ### Pirâmide
 
@@ -1787,7 +1896,7 @@ export async function createTestConversation(db: SupabaseClient, opts: Conversat
 
 ---
 
-## 17. Coding Standards
+## 18. Coding Standards
 
 ### TypeScript
 
@@ -1858,7 +1967,7 @@ Evitar `index.ts` de re-export em packages — problemas de tree-shaking e impor
 
 ---
 
-## 18. Error Handling
+## 19. Error Handling
 
 ### AppError — Classe Compartilhada
 
@@ -1970,7 +2079,7 @@ export const logger = pino({
 
 ---
 
-## 19. Monitoring & Observability
+## 20. Monitoring & Observability
 
 ### Matriz
 
@@ -2050,7 +2159,7 @@ export const logger = pino({
 
 ---
 
-## 20. Checklist Results
+## 21. Checklist Results
 
 ### 5 Prioridades de Investigação — Resolvidas
 
@@ -2082,7 +2191,7 @@ export const logger = pino({
 ✅ Isolamento multi-tenant em todas as camadas
 ✅ Sem features inventadas — cada decisão rastreável a story ou NFR
 ✅ Soluções simples preferidas (sem Redis, sem pg_notify, sem Turborepo)
-✅ Segurança por design: CSP, HMAC-SHA256, AES-256, deny_all em credentials
+✅ Segurança por design: CSP, HMAC-SHA256, AES-256-GCM, deny_all em credentials
 ✅ LGPD compliant: pseudonimização, retenção, base legal Art. 7º IX, subprocessadores
 ✅ Sandbox strategy completa: dev nunca chama APIs reais acidentalmente
 ✅ Testing strategy com 100% em modules de crypto e compliance LGPD

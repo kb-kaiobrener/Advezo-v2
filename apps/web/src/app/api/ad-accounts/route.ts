@@ -19,10 +19,9 @@ export async function GET(request: Request) {
 
   const { data } = await supabase
     .from('ad_accounts')
-    .select('id, name, platform, status')
+    .select('id, account_name, platform, status')
     .eq('client_id', clientId)
-    .is('deleted_at', null)
-    .order('name')
+    .order('account_name')
 
   return NextResponse.json(data ?? [])
 }

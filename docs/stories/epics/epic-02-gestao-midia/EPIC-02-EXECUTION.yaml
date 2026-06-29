@@ -1,0 +1,324 @@
+epic_id: "EPIC-02"
+epic_name: "Gestão de Mídia (Meta Ads + Google Ads)"
+epic_path: "docs/stories/epics/epic-02-gestao-midia"
+created_by: "@pm (Morgan)"
+created_at: "2026-06-26"
+status: "active"  # Wave 1 liberada — PC-01 e PC-02 resolvidos em 2026-06-26
+
+goal: >
+  Habilitar o gestor a operar todas as contas de Meta Ads e Google Ads dos seus clientes
+  diretamente no Advezo — conectando via OAuth, sincronizando campanhas e métricas de forma
+  agendada e sob demanda, executando ações inline e visualizando saúde e histórico de 4 semanas
+  sem abrir o gerenciador nativo.
+
+product_docs:
+  prd: "docs/prd.md"
+  architecture: "docs/architecture.md"  # Seção 10 — Estratégia de Sandbox e Testes de Integração (PC-01)
+  sandbox_strategy: "docs/architecture.md#10-estratégia-de-sandbox-e-testes-de-integração"
+  ux_spec: "docs/ux-design-spec.md"
+
+# ─────────────────────────────────────────────
+# MODO DE EXECUÇÃO
+# ─────────────────────────────────────────────
+#
+# Regra de rigor herdada do Epic 1 (confirmada pelo usuário 2026-06-26):
+#   FULL QA Gate + interactive mode: qualquer story com OAuth real, token criptografado,
+#     chamada a API externa (Meta/Google), ou dado saindo do ambiente local/mock.
+#   YOLO + simplified gate: stories de UI que apenas lêem de tabelas DB já sincronizadas,
+#     sem nova chamada externa, sem nova RLS.
+#
+execution_mode: "interactive"  # default — waves sobrescrevem
+wave_execution_modes:
+  wave_1: "interactive"   # OAuth + AES-256-GCM — risco máximo
+  wave_2: "interactive"   # Sync cron + APIs externas — risco máximo
+  wave_3: "yolo"          # UI/Analytics lendo campaign_metrics — baixo risco
+  wave_4: "interactive"   # Ações inline (mutations em API externa) + alertas
+qa_gate_level:
+  wave_1: "full"
+  wave_2: "full"
+  wave_3: "simplified"    # build + typecheck + testes passando
+  wave_4: "full"
+auto_release_waves: [3]   # somente Wave 3 auto-libera; demais requerem confirmação
+
+state_file: ".aiox/epic-02-state.yaml"
+
+# ─────────────────────────────────────────────
+# PRÉ-CONDIÇÕES (bloqueiam Wave 1)
+# ─────────────────────────────────────────────
+pre_conditions:
+  - id: "PC-01"
+    description: "@architect define estratégia de sandbox por plataforma (Meta Test Ad Account, Google test customer)"
+    owner: "@architect"
+    required_before: "wave_1"
+    reference: "docs/architecture.md — Seção 10 (Estratégia de Sandbox e Testes de Integração)"
+    status: "resolved"  # 2026-06-26 — @architect (Aria): Seção 10 documenta Meta + Google sandbox, env vars, anti-prod CI, nota TOKEN_ENCRYPTION_KEY por ambiente
+
+  - id: "PC-02"
+    description: "Utilitário de criptografia AES-256-GCM criado/validado em packages/utils antes de armazenar tokens"
+    owner: "@data-engineer + @dev"
+    required_before: "wave_1"
+    reference: "docs/architecture.md — NFR-1 / Seção 16 (Security) / packages/utils/src/crypto.ts"
+    status: "resolved"  # 2026-06-26 — @architect (Aria): crypto.ts (AES-256-GCM) + 5 testes passando; TOKEN_ENCRYPTION_KEY no .env.example
+
+  - id: "PC-03"
+    description: "Google Ads Developer Token validado para produção (processo de aprovação Google)"
+    owner: "Usuário (ação manual fora do sistema)"
+    required_before: "wave_2"
+    note: "Story 2.2 pode prosseguir em sandbox; Story 2.4 requer token de produção aprovado. Processo documentado em docs/architecture.md Seção 10.2."
+
+# ─────────────────────────────────────────────
+# STORIES
+# ─────────────────────────────────────────────
+stories:
+  - id: "2.1"
+    title: "Conexão de Contas Meta Ads via OAuth"
+    path: "docs/stories/epics/epic-02-gestao-midia/2.1.story.md"
+    executor: "@dev"
+    quality_gate: "@architect"
+    status: "done"  # QA Gate PASS 2026-06-26 — 10/10 critérios; 53 testes; TypeCheck ✅ Build ✅
+    estimated_effort: "L"
+    risk_level: "HIGH"
+    risk_factors:
+      - "OAuth 2.0 flow com Meta — token de acesso real"
+      - "AES-256-GCM encryption em repouso (NFR-1)"
+      - "Nova tabela ad_accounts com RLS por workspace"
+
+  - id: "2.2"
+    title: "Conexão de Contas Google Ads via OAuth"
+    path: "docs/stories/epics/epic-02-gestao-midia/2.2.story.md"
+    executor: "@dev"
+    quality_gate: "@architect"
+    status: "done"  # QA Gate PASS 2026-06-26 — 10/10 critérios; 61 testes; TypeCheck ✅ Build ✅; Wave 1 COMPLETA
+    estimated_effort: "L"
+    risk_level: "HIGH"
+    risk_factors:
+      - "OAuth 2.0 com Google + refresh token"
+      - "Ambos token e refresh token criptografados"
+      - "MCC (Manager Account) — listagem de contas filhas"
+    depends_on: ["2.1"]  # reutiliza ad_accounts DDL criado em 2.1
+
+  - id: "2.3"
+    title: "Sync de Campanhas e Métricas (Meta Ads)"
+    path: "docs/stories/epics/epic-02-gestao-midia/2.3.story.md"
+    executor: "@dev"
+    quality_gate: "@architect"
+    status: "done"  # QA Gate CONCERNS→Done 2026-06-27; ARCH-1 waiver: cron RLS fix obrigatório antes de prod (fix em 2.4)
+    estimated_effort: "XL"
+    risk_level: "HIGH"
+    risk_factors:
+      - "Chamadas reais à Meta Marketing API"
+      - "Cron Railway — primeira história com cron em produção"
+      - "Lógica de deduplicação de conversões (preservada da v1)"
+      - "Nova tabela campaign_metrics + sync_errors"
+    depends_on: ["2.1"]
+
+  - id: "2.4"
+    title: "Sync de Campanhas e Métricas (Google Ads)"
+    path: "docs/stories/epics/epic-02-gestao-midia/2.4.story.md"
+    executor: "@dev"
+    quality_gate: "@architect"
+    status: "done"  # QA Gate CONCERNS→Done 2026-06-27; ARCH-1 quitado; Wave 2 COMPLETA
+    estimated_effort: "L"
+    risk_level: "HIGH"
+    risk_factors:
+      - "Chamadas reais à Google Ads API"
+      - "Refresh token renovado automaticamente"
+      - "Developer Token de produção (PC-03)"
+    depends_on: ["2.2", "2.3"]  # 2.3 cria infra de cron e campaign_metrics
+
+  - id: "2.5"
+    title: "Listagem de Campanhas por Conta"
+    path: "docs/stories/epics/epic-02-gestao-midia/2.5.story.md"
+    executor: "@dev"
+    quality_gate: "@architect"
+    status: "done"  # QA Gate simplified PASS 2026-06-28 — 85 testes; TypeCheck ✅; ícone Megaphone (BarChart2 ocupado por /reports)
+    estimated_effort: "M"
+    risk_level: "LOW"
+    risk_factors: []
+    note: "Lê apenas de campaign_metrics já sincronizado — sem nova chamada a API externa"
+    depends_on: ["2.3", "2.4"]
+
+  - id: "2.6"
+    title: "Dashboard de Saúde por Cliente (dados reais)"
+    path: "docs/stories/epics/epic-02-gestao-midia/2.6.story.md"
+    executor: "@dev"
+    quality_gate: "@architect"
+    status: "done"  # QA Gate PASS 2026-06-28 — calculateHealthScore 50/30/20 (ROAS+CTR+trend S-1vsS-2); previousSpend nullable; 19 testes utils + 85 web
+    estimated_effort: "M"
+    risk_level: "LOW"
+    risk_factors: []
+    note: "Substitui mocks da Story 1.6 com dados reais de campaign_metrics — UI only"
+    depends_on: ["2.3", "2.4"]
+
+  - id: "2.7"
+    title: "Ações Inline: Pausar/Ativar e Ajustar Orçamento"
+    path: "docs/stories/epics/epic-02-gestao-midia/2.7.story.md"
+    executor: "@dev"
+    quality_gate: "@architect"
+    status: "done"  # QA Gate PASS 2026-06-28 — 92 testes; TypeCheck ✅; Opção C Google budget (CampaignBudget resourceName via GAQL); Wave 4 story 1/2 COMPLETA
+    estimated_effort: "M"
+    risk_level: "HIGH"
+    risk_factors:
+      - "Mutations reais em Meta/Google API (pausar/ativar campanha)"
+      - "action_log: auditoria de quem, o quê, quando, resultado"
+      - "Erros de API devem ser tratados inline (NFR-4)"
+    depends_on: ["2.5"]
+
+  - id: "2.8"
+    title: "Análise Comparativa de 4 Semanas"
+    path: "docs/stories/epics/epic-02-gestao-midia/2.8.story.md"
+    executor: "@dev"
+    quality_gate: "@architect"
+    status: "done"  # QA Gate simplified PASS 2026-06-28 — getWeekRanges+aggregateByWeek+percentDelta; 85 testes; TypeCheck ✅; Wave 3 COMPLETA
+    estimated_effort: "M"
+    risk_level: "LOW"
+    risk_factors: []
+    note: "Analytics UI — lê exclusivamente de campaign_metrics, sem nova chamada externa"
+    depends_on: ["2.5"]
+
+  - id: "2.9"
+    title: "Alertas de Saldo Proativo (UI)"
+    path: "docs/stories/epics/epic-02-gestao-midia/2.9.story.md"
+    executor: "@dev"
+    quality_gate: "@architect"
+    status: "done"  # QA Gate PASS 2026-06-28 — 128 testes; TypeCheck ✅; CP4 (dedup via 23505) + CP5 (API real saldo). Wave 4 COMPLETA. Epic 2 COMPLETO.
+    estimated_effort: "M"
+    risk_level: "MEDIUM"
+    risk_factors:
+      - "Nova tabela alerts + cron de verificação diária"
+      - "Projeção de esgotamento com base em spend histórico"
+      - "Dispatch via WhatsApp implementado no Epic 3 (Story 3.6) — esta story cria apenas detecção local"
+    depends_on: ["2.3", "2.4", "2.7"]
+    qa_explicit_requirements:
+      - "Teste de deduplicação: constraint parcial UNIQUE (ad_account_id, alert_type) WHERE resolved_at IS NULL deve bloquear INSERT duplicado (não só código)"
+      - "Teste de falha na chamada de saldo (API indisponível): cron NÃO para; conta problemática registrada em sync_errors; outras contas processadas"
+
+# ─────────────────────────────────────────────
+# WAVES — Ordem de execução
+# ─────────────────────────────────────────────
+waves:
+  - wave: 1
+    name: "OAuth + Criptografia"
+    description: >
+      Sequencial: 2.1 cria a tabela ad_accounts e o utilitário AES-256-GCM.
+      2.2 reutiliza essa estrutura para Google. PC-01 e PC-02 devem estar
+      resolvidos antes de iniciar.
+    mode: "sequential"
+    checkpoint_required: true
+    stories: ["2.1", "2.2"]
+    gate:
+      validator: "@architect"
+      level: "full"
+      criteria:
+        - "Fluxo OAuth Meta completo: redirect → callback → token armazenado criptografado"
+        - "Token AES-256-GCM: nunca em texto puro na tabela ad_accounts"
+        - "RLS em ad_accounts: isolamento por workspace_id via auth_workspace_id()"
+        - "Fluxo OAuth Google completo com refresh token — ambos criptografados"
+        - "Múltiplas Business Managers / MCC suportadas por workspace"
+        - "Token expirado gera alerta visível na UI (NFR-4)"
+        - "Testes de integração validando fluxo OAuth com sandbox Meta + Google"
+
+  - wave: 2
+    name: "Data Sync + Cron"
+    description: >
+      Sequencial: 2.3 cria a infraestrutura de cron no Railway e a tabela
+      campaign_metrics. 2.4 estende o cron existente para Google Ads.
+      Requer PC-03 resolvido antes de 2.4 em produção.
+    mode: "sequential"
+    checkpoint_required: true
+    stories: ["2.3", "2.4"]
+    gate:
+      validator: "@architect"
+      level: "full"
+      criteria:
+        - "Cron Railway executando sync diário Meta — last_synced_at atualizado"
+        - "Deduplicação de conversões Meta preservada (lógica da v1)"
+        - "campaign_metrics populado com dados reais após sync"
+        - "sync_errors registrado e visível na UI quando sync falha (NFR-4)"
+        - "Botão Sincronizar agora funcional por conta"
+        - "Cron inclui Google Ads; refresh token renovado automaticamente"
+        - "Falhas de renovação de refresh token geram alerta (NFR-4)"
+        - "Testes de integração com sandbox Meta Test Ad Account e Google test customer"
+
+  - wave: 3
+    name: "UI + Analytics"
+    description: >
+      UI consumindo campaign_metrics já validado nas Waves 1-2.
+      2.5 e 2.6 podem rodar em paralelo (arquivos não conflitantes).
+      2.8 depende da UI de listagem (2.5) para contexto de navegação.
+    mode: "parallel"  # 2.5 e 2.6 paralelo; 2.8 após 2.5
+    checkpoint_required: false  # auto-release após gate
+    stories: ["2.5", "2.6", "2.8"]
+    execution_order: "2.5 || 2.6, então 2.8 após 2.5"
+    gate:
+      validator: "@architect"
+      level: "simplified"
+      criteria:
+        - "Listagem de campanhas com colunas corretas (plataforma, nome, status, orçamento, gasto)"
+        - "Filtros de status e busca funcionando em campaign_metrics local"
+        - "Dashboard 1.6 substituído por dados reais com lógica de cor real"
+        - "Análise 4 semanas renderizada corretamente (S-4, S-3, S-2, S-1)"
+        - "build + typecheck + testes passando"
+
+  - wave: 4
+    name: "Ações Inline + Alertas"
+    description: >
+      Sequencial: 2.7 (ações inline — HIGH RISK, chamadas reais de mutation à API)
+      precede 2.9 (alertas — cria action_log que pode ser referenciado em alertas).
+    mode: "sequential"
+    checkpoint_required: true
+    stories: ["2.7", "2.9"]
+    gate:
+      validator: "@architect"
+      level: "full"
+      criteria:
+        - "Pausar/ativar campanha chama API Meta/Google real e confirma mudança de status"
+        - "Ajuste de orçamento inline persiste na plataforma (não apenas localmente)"
+        - "action_log registra quem, o quê, quando, resultado para toda ação"
+        - "Erros de API exibidos inline sem reload (NFR-4)"
+        - "Alerta de saldo detectado corretamente com projeção de N dias"
+        - "Tabela alerts populada pelo cron com status correto"
+        - "Badge de alerta visível na conta afetada no dashboard"
+        - "Testes com mocks de API para pausar/ativar (não chamar API real em CI)"
+
+# ─────────────────────────────────────────────
+# CONSTRAINTS
+# ─────────────────────────────────────────────
+constraints:
+  global_blockers:
+    - description: "PC-01 e PC-02 devem estar resolvidos antes da Wave 1 iniciar"
+      affects: "wave_1"
+    - description: "PC-03 (Developer Token Google produção) deve estar validado antes de 2.4 em produção"
+      affects: "story_2.4"
+
+  security_non_negotiable:
+    - "Tokens OAuth NUNCA em texto puro — AES-256-GCM obrigatório antes de persistir (NFR-1)"
+    - "NEXT_PUBLIC_* nunca deve conter secrets de API externa"
+    - "Falhas de sync NUNCA silenciosas — registrar em sync_errors e exibir na UI (NFR-4)"
+    - "action_log obrigatório para toda mutação inline em campanha"
+    - "Sandbox obrigatório em desenvolvimento/staging (Meta Test Ad Account, Google test customer)"
+
+  constitution_gates:
+    - article: "I (CLI First)"
+      check: "OAuth flows via redirect/callback padrão da plataforma — não bibliotecas proprietárias"
+    - article: "IV (No Invention)"
+      check: "Todos os ACs rastreáveis ao PRD — nenhuma feature de sync ou análise inventada"
+    - article: "V (Quality First)"
+      check: "Testes de integração com sandbox obrigatórios antes de QA gate das Waves 1 e 2"
+
+# ─────────────────────────────────────────────
+# POST-EPIC
+# ─────────────────────────────────────────────
+post_epic:
+  next_epic: "EPIC-03"
+  next_epic_name: "Comunicação com Cliente (WhatsApp)"
+  trigger: "QA gate Wave 4 PASS"
+  note: >
+    Story 3.1 (Migração WhatsApp Worker para Baileys) é pré-requisito de todas as
+    outras stories do Epic 3 e pode ser iniciada ANTES do Epic 2 terminar — não há
+    dependência técnica entre 3.1 e as waves do Epic 2. @pm pode criar EPIC-03
+    e liberar Story 3.1 imediatamente após Epic 2 Wave 1 PASS se quiser paralelismo.
+  handoff_notes: >
+    Após Epic 2 completo: OAuth conectado, sync de métricas ativo, ações inline
+    disponíveis e alertas de saldo configurados. Epic 3 pode consumir os alertas
+    gerados pela Story 2.9 via tabela alerts (campo status pending → Story 3.6).

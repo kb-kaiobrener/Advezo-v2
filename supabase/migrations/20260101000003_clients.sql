@@ -19,7 +19,7 @@ $$;
 -- ── CLIENTS ──────────────────────────────────────────────────────────
 
 CREATE TABLE clients (
-  id            uuid        PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id            uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
   workspace_id  uuid        NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
   name          text        NOT NULL,
   document      text,

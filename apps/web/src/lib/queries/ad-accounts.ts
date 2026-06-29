@@ -2,7 +2,7 @@ import type { AdAccount } from '@advezo/types'
 
 export type AdAccountListItem = Pick<
   AdAccount,
-  'id' | 'name' | 'platform' | 'status'
+  'id' | 'account_name' | 'platform' | 'status'
 >
 
 export async function fetchAdAccounts(

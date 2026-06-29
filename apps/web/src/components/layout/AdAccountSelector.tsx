@@ -45,14 +45,18 @@ export function AdAccountSelector() {
             role="option"
             aria-selected={isSelected}
             onClick={() =>
-              setActiveAdAccount(account.id, account.name, account.platform)
+              setActiveAdAccount(
+                account.id,
+                account.account_name ?? 'Conta sem nome',
+                account.platform
+              )
             }
             className={cn(
               'cursor-pointer rounded-md px-3 py-1.5 text-sm hover:bg-muted',
               isSelected && 'bg-brand-100 text-brand-700'
             )}
           >
-            {account.name}
+            {account.account_name ?? 'Conta sem nome'}
           </li>
         )
       })}

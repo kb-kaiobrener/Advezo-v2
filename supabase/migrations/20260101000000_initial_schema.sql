@@ -4,11 +4,9 @@
 -- Includes: RLS policies + auto-create trigger for settings
 -- ============================================================
 
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
-
 -- ── WORKSPACES ────────────────────────────────────────────────
 CREATE TABLE workspaces (
-  id          uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   name        text NOT NULL,
   created_by  uuid NOT NULL REFERENCES auth.users(id) ON DELETE RESTRICT,
   created_at  timestamptz NOT NULL DEFAULT now(),
@@ -19,10 +17,7 @@ ALTER TABLE workspaces ENABLE ROW LEVEL SECURITY;
 
 CREATE OR REPLACE FUNCTION auth_workspace_id()
 RETURNS uuid LANGUAGE sql STABLE AS $$
-  SELECT workspace_id
-  FROM   workspace_members
-  WHERE  user_id = auth.uid()
-  LIMIT  1
+  SELECT (auth.jwt() -> 'user_metadata' ->> 'workspace_id')::uuid;
 $$;
 
 CREATE POLICY workspace_self ON workspaces
@@ -30,7 +25,7 @@ CREATE POLICY workspace_self ON workspaces
 
 -- ── WORKSPACE_MEMBERS ────────────────────────────────────────
 CREATE TABLE workspace_members (
-  id           uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id           uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   workspace_id uuid NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
   user_id      uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   role         text NOT NULL CHECK (role IN ('owner', 'admin', 'viewer')),
