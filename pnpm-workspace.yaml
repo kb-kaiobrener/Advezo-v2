@@ -3,5 +3,12 @@ packages:
   - 'packages/*'
 allowBuilds:
   esbuild: true
+  protobufjs: true
   sharp: true
   unrs-resolver: true
+# Allow exotic (git-resolved) subdependencies. Required by @whiskeysockets/baileys,
+# whose dependency tree resolves libsignal and @whiskeysockets/eslint-config via git.
+# In pnpm 11 this setting lives in pnpm-workspace.yaml (NOT .npmrc — that key is ignored).
+# Approved by user on 2026-06-30 for Epic 3 / Story 3.1 (Baileys migration) with full
+# knowledge of the global trade-off; pnpm offers no per-package allowlist.
+blockExoticSubdeps: false

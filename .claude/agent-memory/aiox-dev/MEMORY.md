@@ -8,3 +8,5 @@
 - [Meta webhook endpoint](project_meta-webhook-endpoint.md) — Story 8.5 patterns for server-to-server webhooks: raw-body HMAC, timingSafeEqual length-guard, CORS closed, queue 23505 dedup idempotent (200 ACK), ad_accounts.external_account_id mapping
 - [CAPI leads dispatch](project_capi-leads-dispatch.md) — Story 8.7 CAPI: no meta_conversions_api_enabled col (select * + defensive read), no conversion_events table (guard via PGRST205), token from ad_accounts, lead.ts compat layer
 - [Leads dual legal basis](project_leads_dual_legal_basis.md) — Epic 8 leads: 2 bases legais por source; consent_given_at NULL em lead_ads é correto, não bug; 3 padrões hash/cripto distintos
+- [pnpm exotic subdeps](project_pnpm-exotic-subdeps.md) — pnpm 11 lê blockExoticSubdeps de pnpm-workspace.yaml, NÃO de .npmrc (ignorado); necessário p/ Baileys (libsignal via git)
+- [WhatsApp worker schema](project_whatsapp-worker-schema.md) — Story 3.1: whatsapp_accounts schema, divergência c/ architecture.md, service-role via subpath /service, circuit breaker em memória

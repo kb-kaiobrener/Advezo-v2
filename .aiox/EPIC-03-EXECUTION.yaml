@@ -1,0 +1,181 @@
+epic_id: "03"
+epic_name: "Comunicação com Cliente via WhatsApp"
+epic_path: "docs/stories/epics/epic-03-comunicacao-whatsapp"
+prd_section: "docs/prd.md § Epic 3 (linha ~510)"
+authorized_by: "@pm (Morgan)"
+authorized_at: "2026-06-30"
+
+goal: >
+  Eliminar o trabalho manual do gestor na comunicação com clientes — relatórios automáticos
+  via WhatsApp adaptados ao objetivo real da conta, alertas proativos antes do saldo zerar,
+  e dashboard compartilhável com branding da agência que substitui planilha.
+  Base técnica: serviço WhatsApp estável via Baileys, migrado na Story 3.1 antes de
+  qualquer outra story deste epic.
+
+blocking_constraint:
+  development: >
+    Wave 2+ desbloqueadas após QA Gate PASS (código) + confirmação manual das 24h de
+    estabilidade em staging (AC 3.1.4): ciclo QR → conexão → sessão no Supabase Storage →
+    reconexão após restart. Número WA de teste (qualquer número disponível) suficiente.
+  production: >
+    Uso com número de cliente real bloqueado até `pre_production_gate` ser satisfeito —
+    7 dias de uptime contínuo monitorado via UptimeRobot (Monitor 2 — /health do worker),
+    sem restart manual, sem queda de sessão, sem alerta de memória > 70%.
+    Este gate NÃO bloqueia o desenvolvimento das stories restantes do Epic 3.
+
+architectural_decisions_locked:
+  - "whatsapp-worker: Railway Nixpacks sem Dockerfile (apps/whatsapp-worker/)"
+  - "Sessão Baileys: Supabase Storage — {workspace_id}/wpp/{account_id}/session.json"
+  - "Circuit breaker: 5 falhas de reconexão em 10 min → cb_paused_at em whatsapp_accounts"
+  - "whatsapp_accounts.cb_failure_count (integer) + cb_paused_at (timestamptz)"
+  - "Número WhatsApp de teste dedicado para dev/staging — nunca número real de cliente"
+  - "Library: @whiskeysockets/baileys (última versão estável)"
+  - "Logging: pino (JSON estruturado)"
+  - "HTTP server: Express (health check GET /health, QR endpoint GET /qr)"
+  - "Supabase client no worker: service role key via env var (sem JWT de usuário)"
+  - "Migration 000010: whatsapp_accounts (Story 3.1); 000011: whatsapp_connections (Story 3.2)"
+
+execution_plan:
+
+  wave_1:
+    stories: ["3.1"]
+    description: "Fundação — Migração whatsapp-worker para Baileys"
+    mode: "interactive"
+    qa_gate: "completo"
+    gate_before_advance: true
+    parallel: false
+    notes: >
+      Pré-requisito bloqueante de todo o Epic 3 e dos Epics 4, 5, 6.
+      Story 3.1 toca em infra de processo de longa duração no Railway, sessão persistida
+      no Supabase Storage e circuit breaker crítico.
+      CRITÉRIO ESPECIAL DE DONE: além do QA Gate de código (testes, typecheck, lint),
+      a story só é Done após 24h de sessão conectada e estável em staging sem queda —
+      sem Chromium, sem Puppeteer. Este critério NÃO pode ser dispensado ou substituído
+      por mocks.
+      Número WA: qualquer número disponível serve para escanear o QR em staging.
+      account_id = número E.164 (ex: 5511999998888) — text sem CHECK constraint.
+      JID Baileys (...@s.whatsapp.net) é detalhe interno, não persistido no banco.
+      Migration: 000010 (000009 foi o Epic 8 após renomeação).
+      tsconfig.json ausente — deve ser criado ANTES de qualquer outra coisa.
+    status: "done_code"
+    released_at: "2026-06-30"
+    completed_code_at: "2026-06-30"
+    qa_result: >
+      PASS (código) — 18/18 testes passando (10 session + 8 circuit-breaker), build limpo, typecheck limpo.
+      Nenhuma dep de Chromium/Puppeteer. AC 3.1.4 (24h estabilidade staging) e AC 3.1.5 (envio e2e)
+      PENDENTES de confirmação manual pelo operador antes de considerar Done completo.
+    qa_concerns:
+      - "MNT-001: status='connecting' nunca setado no código (migration permite)"
+      - "PERF-001: createSupabaseServiceClient() instanciado por chamada (não memoizado)"
+      - "REL-001: contagem CB em memória zera no restart (cb_paused_at persistido mantém bloqueio)"
+    notes_post: >
+      Supply-chain: blockExoticSubdeps=false em pnpm-workspace.yaml (aprovado pelo usuário).
+      Razão: pnpm 11 não tem allowlist granular; libsignal é dep git-only do Baileys.
+      @architect deve reconciliar architecture.md (schema diverge da story — story é autoritativa).
+    staging_pending:
+      ac_3_1_4: >
+        24h de sessão estável: QR → conexão → sessão no Supabase Storage → reconexão após restart.
+        Confirmação no Change Log com timestamps de início e fim DESBLOQUEIA Wave 2.
+        Número WA de teste (qualquer número disponível) é suficiente para este critério.
+      ac_3_1_5: >
+        Envio e2e com número WA real. PENDENTE — validação manual em staging.
+        Não bloqueia Wave 2 (AC 3.1.4 é o gate para Wave 2; AC 3.1.5 confirma funcionalidade básica
+        de envio que Wave 4 e 5 dependerão).
+
+  wave_2:
+    stories: ["3.2", "3.4"]
+    description: "Conexão por cliente + Motor de geração de relatório"
+    mode:
+      "3.2": "interactive"
+      "3.4": "yolo"
+    qa_gate:
+      "3.2": "completo"
+      "3.4": "yolo"
+    gate_before_advance: true
+    parallel: true
+    depends_on: ["wave_1"]
+    notes: >
+      3.2 (Conexão WA): QR code flow, multi-tenant Supabase Storage, status de conexão na UI.
+      Requer worker rodando — modo interativo obrigatório.
+      3.4 (Geração de relatório): lógica pura, testável unitariamente sem conexão WhatsApp.
+      Pode rodar em paralelo com 3.2 (sem dependência entre si).
+    status: "pending"
+
+  wave_3:
+    stories: ["3.3", "3.7"]
+    description: "Configuração de relatórios + Dashboard compartilhável"
+    mode:
+      "3.3": "yolo"
+      "3.7": "yolo"
+    qa_gate:
+      "3.3": "yolo"
+      "3.7": "yolo"
+    gate_before_advance: true
+    parallel: true
+    depends_on: ["wave_2"]
+    notes: >
+      3.3 (Config relatórios): CRUD de report_schedules — padrão estabelecido.
+      3.7 (Dashboard compartilhável): rota pública /dashboard/[token] com JWT de escopo
+      restrito (NFR-2 — sem service key exposta). Atenção ao AC 3.7.8 (< 2s Lighthouse em 4G).
+    status: "pending"
+
+  wave_4:
+    stories: ["3.5", "3.6"]
+    description: "Envio de relatório + Alertas proativos via WhatsApp"
+    mode:
+      "3.5": "interactive"
+      "3.6": "interactive"
+    qa_gate:
+      "3.5": "completo"
+      "3.6": "completo"
+    gate_before_advance: true
+    parallel: true
+    depends_on: ["wave_3"]
+    notes: >
+      3.5 (Envio relatório): envio real via Baileys, suporte a grupo de WA (FR-B1),
+      dedup de relatório no período, reenvio manual. Modo interativo — toca envio real.
+      3.6 (Alertas proativos): consome tabela alerts da Story 2.9, envio via Baileys,
+      suporte a grupo. Modo interativo — integração cross-epic + envio real.
+      AC crítico 3.5.2: suporte explícito a grupo testado com envio real.
+      AC crítico 3.6.5: sem envio duplicado.
+    status: "pending"
+
+  wave_5:
+    stories: ["3.8"]
+    description: "Painel logado do cliente final"
+    mode: "yolo"
+    qa_gate: "yolo"
+    gate_before_advance: false
+    parallel: false
+    depends_on: ["wave_4"]
+    notes: >
+      3.8 (Painel cliente): fluxo de convite por email, /cliente rota, RLS por client_id.
+      AC crítico 3.8.2: RLS garante isolamento — acesso a outro client_id → 403 (testado explicitamente).
+    status: "pending"
+
+pre_production_gate:
+  description: >
+    Antes de conectar número de cliente real ao worker em produção, exigir mínimo 7 dias
+    de uptime contínuo monitorado sem restart manual, sem queda de sessão e sem alerta
+    de memória > 70%.
+  monitor: "UptimeRobot Monitor 2 — whatsapp-worker GET /health"
+  threshold:
+    uptime_days: 7
+    no_manual_restart: true
+    no_session_drop: true
+    memory_alert_threshold: "70%"
+  blocks: "conexão de número de cliente real em produção"
+  does_not_block: "desenvolvimento das stories restantes do Epic 3 (waves 2–5)"
+  verification: >
+    Operador confirma no Change Log do epic com print do UptimeRobot (7 dias sem incidente)
+    antes de onboarding de primeiro cliente no worker.
+
+security_constraints:
+  - "Sessão Baileys em Supabase Storage — nunca em volume Railway (durável em migrações de serviço)"
+  - "SUPABASE_SERVICE_ROLE_KEY no Railway via env vars — nunca em código"
+  - "Número WA de teste dedicado para dev/staging — nunca número real de cliente"
+  - "Dashboard público (3.7): JWT de escopo restrito via Supabase — service key nunca exposta ao browser"
+  - "client_id RLS enforced — painel cliente (3.8) nunca acessa outro workspace/client"
+  - "cb_paused_at: circuit breaker protege o número WA de banimento por spam de reconexão"
+
+current_wave: 1

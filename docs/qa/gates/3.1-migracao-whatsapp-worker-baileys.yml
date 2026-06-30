@@ -1,0 +1,57 @@
+schema: 1
+story: '3.1'
+gate: PASS
+status_reason: 'Código bem estruturado, 18/18 testes passando, build e typecheck limpos, sem dependências de browser. ACs de infra (3.1.4 24h e 3.1.5 e2e) corretamente suportados pelo código mas pendentes de validação manual em staging.'
+reviewer: 'Quinn'
+updated: '2026-06-30T19:45:00Z'
+
+# ── 7 Quality Checks ──────────────────────────────────────────────
+checks:
+  code_review: PASS        # Padrões limpos, DI no circuit breaker, separação de concerns clara
+  unit_tests: PASS         # 18/18 passando (session 10 + circuit-breaker 8); cobre threshold/janela/reset/corrupção
+  acceptance_criteria: PASS_WITH_PENDING  # 7/9 verificáveis em PASS; 3.1.4 e 3.1.5 são infra/staging
+  no_regressions: PASS     # Worker novo; migration 000010 isolada; build do monorepo não afetado
+  performance: PASS        # Janela de CB em memória, backoff exponencial com teto 60s; sem browser headless (objetivo central)
+  security: PASS           # RLS workspace_isolation; service-role server-side; bucket privado; sem segredos hardcoded
+  documentation: PASS      # Dev Notes, header de migration e comentários inline documentam decisões e divergências
+
+# ── AC Traceability ──────────────────────────────────────────────
+ac_coverage:
+  '3.1.1': PASS            # Baileys substitui Puppeteer; sem browser deps em package.json nem dep tree
+  '3.1.2': PASS            # GET /qr → { qr: base64 PNG } via qrcode.toDataURL; lazy-init no 1º GET
+  '3.1.3': PASS            # session.ts persiste bundle base64 em {ws}/wpp/{acc}/session.json; restore coberto por testes
+  '3.1.4': PENDING_MANUAL  # 24h estabilidade staging — código suporta (backoff + persistência); requer confirmação do operador no Change Log
+  '3.1.5': PENDING_MANUAL  # Envio e2e — requer número WA real escaneando QR em staging
+  '3.1.6': PASS            # connection.update + backoff min(2^n·1s, 60s); distingue loggedOut/restartRequired/transitória
+  '3.1.7': PASS            # circuit-breaker.ts: threshold 5, janela 10min deslizante, cb_paused_at + cb_failure_count; 8 testes
+  '3.1.8': PASS            # GET /health → 200 { status: 'ok', uptime }
+  '3.1.9': PASS            # Sem Chromium/Puppeteer/whatsapp-web.js; única menção 'chromium' é electron-to-chromium (data-only Browserslist, sem binário)
+
+# ── Issues (todos não-bloqueantes) ───────────────────────────────
+top_issues:
+  - id: 'MNT-001'
+    severity: low
+    finding: "status CHECK da migration permite 'connecting', mas o código nunca seta esse valor (apenas connected/cb_paused/disconnected)."
+    suggested_action: 'Avaliar na Story 3.2 se a UI usa connecting; caso não, considerar setar connecting durante o handshake ou remover do CHECK.'
+  - id: 'PERF-001'
+    severity: low
+    finding: 'createSupabaseServiceClient() é instanciado por chamada em markDisconnected/recordFailure/recordSuccess em vez de reutilizado.'
+    suggested_action: 'Memoizar o client a nível de módulo se o volume de updates crescer. Sem impacto no escopo atual.'
+  - id: 'REL-001'
+    severity: low
+    finding: 'Contagem do circuit breaker vive só em memória; restart do worker zera a janela (cb_paused_at persistido mantém o bloqueio, mas a contagem reinicia).'
+    suggested_action: 'Comportamento documentado e aceitável (cb_paused_at sobrevive). Monitorar nas 24h de staging se flapping pós-restart ocorre.'
+
+# ── Pendências que bloqueiam Done (não bloqueiam o gate de código) ─
+done_blockers:
+  - 'AC 3.1.4 — confirmação manual de 24h de estabilidade em Railway staging, registrada no Change Log com timestamps início/fim.'
+  - 'AC 3.1.5 — validação end-to-end de envio de mensagem com número WA real (pode ocorrer durante a janela de 24h).'
+
+# ── Itens delegados (fora do escopo desta story) ─────────────────
+delegated:
+  - to: '@architect'
+    item: 'Reconciliar architecture.md com o schema efetivamente implementado (status CHECK, account_id, bucket). Story 3.1 é autoritativa (Article III).'
+  - to: 'monorepo tooling'
+    item: 'ESLint ausente no monorepo (gap pré-existente do scaffold, afeta classification-worker idêntico). Recomenda-se story separada. Static-analysis efetivo nesta story: tsc --noEmit (passou).'
+
+waiver: { active: false }
