@@ -1756,6 +1756,51 @@ forma silenciosa (NFR-4).
 > **Variável `CRON_SECRET`** (mín. 32 chars, distinta por ambiente — NFR-7) deve
 > estar configurada tanto no serviço da aplicação quanto no job de cron do Railway.
 
+### Cron de Processamento de Lead Ads (Story 8.6)
+
+Processamento assíncrono dos leads recebidos via webhook Meta Lead Ads (Story 8.5),
+enfileirados em `lead_processing_queue`. Roda a cada minuto para entregar o lead em até
+~90 s após a notificação da Meta.
+
+```
+Schedule:  */1 * * * *           (a cada minuto)
+Método:    POST https://<app-url>/api/leads/process-queue
+Header:    x-cron-secret: $CRON_SECRET   (401 se ausente/diferente)
+Resposta:  { processed: N, failed: M, skipped: K }
+```
+
+Configuração em `railway.json` (raiz do repositório):
+
+```json
+{
+  "cron": [
+    {
+      "command": "curl -X POST $APP_URL/api/leads/process-queue -H \"x-cron-secret: $CRON_SECRET\"",
+      "schedule": "*/1 * * * *"
+    }
+  ]
+}
+```
+
+O endpoint busca até 10 itens `status='pending'` (ordenados por `enqueued_at ASC`) e os
+processa com `Promise.allSettled` — falha de um item **não** cancela os demais
+(NFR-PERF-3). Por item: marca `status='processing'`, descriptografa o `encrypted_token`
+da conta (AES-256-GCM, em memória, nunca logado), busca os dados do lead na Graph API
+(`GET /{meta_lead_id}?fields=field_data,full_name,phone_number,email`), normaliza os
+campos, calcula `phone_hash = HMAC-SHA256(normalizePhone(phone), workspace_id)` e
+`email_encrypted = AES-256-GCM(email)` (sempre para Lead Ads — base legal: termos Meta),
+e faz `INSERT` em `leads` com `source='lead_ads'` e `consent_given_at=NULL`.
+
+Deduplicação (idempotência): violação de `leads_meta_lead_id_unique` (23505 — entrega
+duplicada da Meta) marca o item como `completed` **sem** disparar CAPI. Em sucesso,
+dispara o evento `Lead` (Story 8.7). Em erro: `retry_count++` (volta a `pending`); ao
+atingir 3 tentativas → `status='failed'` + registro em `sync_errors`
+(`error_type='lead_processing_failed'`), nunca de forma silenciosa (NFR-4).
+
+> Lead Ads não possui `lead_form` vinculado, logo não há `qualification_rules`
+> aplicáveis: o lead permanece `novo` e somente o evento `Lead` é disparado
+> automaticamente (sem `CompleteRegistration`).
+
 ---
 
 ## 16. Security & Performance

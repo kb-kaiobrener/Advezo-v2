@@ -49,13 +49,15 @@ describe('Sidebar', () => {
     cleanup()
   })
 
-  it('renderiza 6 nav items + Configurações (7 links de navegação)', () => {
+  it('renderiza os nav items principais + Leads + Configurações', () => {
     const { getByRole } = renderSidebar()
     const labels = [
       'Dashboard',
       'Clientes',
       'WhatsApp',
       'Conversões',
+      'Campanhas',
+      'Leads',
       'Relatórios',
       'Assistente IA',
       'Configurações',

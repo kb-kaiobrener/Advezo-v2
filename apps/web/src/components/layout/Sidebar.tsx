@@ -9,6 +9,7 @@ import {
   MessageCircle,
   TrendingUp,
   Megaphone,
+  UserPlus,
   BarChart2,
   BrainCircuit,
   Settings,
@@ -37,6 +38,7 @@ const navItems: NavItem[] = [
   { href: '/whatsapp', label: 'WhatsApp', icon: MessageCircle },
   { href: '/conversions', label: 'Conversões', icon: TrendingUp },
   { href: '/campaigns', label: 'Campanhas', icon: Megaphone },
+  { href: '/leads', label: 'Leads', icon: UserPlus },
   { href: '/reports', label: 'Relatórios', icon: BarChart2 },
   { href: '/ai', label: 'Assistente IA', icon: BrainCircuit },
 ]

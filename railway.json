@@ -12,6 +12,10 @@
     {
       "command": "curl -X POST $APP_URL/api/alerts/detect -H \"x-cron-secret: $CRON_SECRET\"",
       "schedule": "0 7 * * *"
+    },
+    {
+      "command": "curl -X POST $APP_URL/api/leads/process-queue -H \"x-cron-secret: $CRON_SECRET\"",
+      "schedule": "*/1 * * * *"
     }
   ]
 }

@@ -1,0 +1,114 @@
+handoff:
+  from_agent: pm
+  to_agent: architect
+  timestamp: "2026-06-28"
+  pipeline_id: epic8-lead-qualification
+  consumed: true
+
+  story_context:
+    epic: "Epic 8 — Qualificação de Leads"
+    phase: "Pre-spec — avaliação de gaps técnicos"
+    status: "PM concluiu proposta de FRs. Architect deve avaliar 5 gaps antes de *write-spec"
+    branch: master
+
+  fr_summary:
+    pillars:
+      - "FR-LP (Landing Page Form): formulário embed-only, campos configuráveis, consent_checkbox para email→CAPI"
+      - "FR-LA (Lead Ads Meta): webhook leadgen, verificação X-Hub-Signature-256, busca de dados via Graph API"
+      - "FR-QC (Qualificação): regras simples AND-only, ciclo de status novo→qualificado|desqualificado→convertido"
+      - "FR-CAPI: eventos Lead + CompleteRegistration + Purchase, reutiliza conversion_events table, lógica de email hash por fonte"
+
+  schema_proposed:
+    new_tables:
+      - "leads: id, workspace_id, client_id, lead_form_id*, meta_lead_id*, source (landing_page|lead_ads), status (novo|qualificado|desqualificado|convertido), name, phone_hash, email_hash*, consent_given_at*, field_data jsonb, qualified_at, converted_at, created_at"
+      - "lead_forms: id, workspace_id, client_id, ad_account_id*, name, slug (unique), fields jsonb, qualification_rules jsonb, is_active, created_at"
+      - "lead_ads_configs: id, workspace_id, ad_account_id, leadgen_form_id (Meta), client_id, verify_token, created_at"
+    existing_extended:
+      - "conversion_events.event_name: adicionar 'Lead' e 'CompleteRegistration' ao CHECK constraint"
+      - "workspace_settings: avaliar necessidade de lead_capi_enabled flag"
+
+  decisions_already_made:
+    - "Q1 email CAPI: diferenciado por fonte — Lead Ads sempre inclui user_data.em; Landing Page só com consent_given_at IS NOT NULL"
+    - "Q2 formulário: embed-only para v1 (snippet JS). Hosted URL adiado"
+    - "Q3 qualificação: regras simples configuráveis pelo gestor (sem IA). AI qualificação adiada"
+    - "Epic 8 sem dependência de Baileys — pode ser priorizado independentemente de Epic 3"
+
+  gaps_for_architect:
+    gap_1:
+      title: "Webhook Lead Ads: Vercel síncrono vs Railway assíncrono"
+      description: |
+        Meta exige ACK do webhook em < 20s (200 OK imediato). Após o ACK, o Advezo precisa
+        fazer GET /{lead-id}?fields=field_data via Graph API (latência variável, pode ser 2-8s).
+        Também precisa criar o lead, avaliar qualificação e disparar CAPI.
+        Opções:
+        A) Vercel API Route: responde 200 imediatamente → ctx.waitUntil(processLead())
+           Simples, zero nova infra. Risco: waitUntil tem timeout de 30s no Vercel (suficiente?).
+        B) Railway worker queue: ACK no Vercel → enfileira no Railway → Railway processa assíncrono.
+           Mais resiliente, mais complexo, nova infra.
+      question: "Qual opção adotar? waitUntil é suficiente ou o risco de timeout no Vercel é real?"
+      decision_needed: true
+
+    gap_2:
+      title: "Embed JS + CORS + CSP para formulário em domínios externos"
+      description: |
+        O snippet embed será executado em domínios de terceiros (landing pages dos clientes).
+        O form submete dados para o Advezo via POST /api/leads/form/:slug.
+        Questões:
+        - CORS: o endpoint de submissão precisa de CORS aberto (origin: *) ou configurável por formulário?
+        - CSP do Advezo: o snippet JS carregado via <script src> não viola nossa própria CSP, mas
+          como o form renderizado no DOM do cliente pode ter CSP do domínio do cliente que bloqueie iframes/fetch.
+        - O snippet JS deve usar fetch direto ou criar um iframe sandboxed?
+        - Autenticação do submit: como identificar o workspace/form sem expor segredos no snippet?
+          (Form slug + HMAC de timestamp? API key pública por formulário?)
+      question: "Arquitetura do snippet embed: fetch direto com CORS ou iframe? Como autenticar submissões sem expor secrets no JS público?"
+      decision_needed: true
+
+    gap_3:
+      title: "Deduplicação de leads entre fontes"
+      description: |
+        Um usuário pode preencher o Lead Ad no Facebook E o formulário de landing page para o mesmo cliente.
+        Isso geraria dois leads com o mesmo phone_hash + client_id, dois eventos CAPI Lead distintos.
+        Meta pode ou não deduplicar dependendo de match de user_data.
+        Opções:
+        A) UNIQUE constraint em (client_id, phone_hash) → segunda submissão é rejeitada silenciosamente.
+           Simples, mas impede leads legítimos de diferentes campanhas.
+        B) UNIQUE parcial: (client_id, phone_hash) WHERE status NOT IN ('desqualificado').
+           Lead desqualificado pode virar novo lead de nova campanha.
+        C) Sem deduplicação DB — lógica na aplicação: busca lead ativo existente, faz merge de dados.
+        D) Deduplicar apenas no CAPI (via event_id baseado em phone_hash+client_id).
+      question: "Qual estratégia de deduplicação? Opção B parece o equilíbrio certo, mas há implicações de RLS e concurrent inserts a considerar."
+      decision_needed: true
+
+    gap_4:
+      title: "verify_token do webhook Meta: escopo por ad_account ou por workspace"
+      description: |
+        A Meta exige que o endpoint de webhook retorne hub.challenge quando recebe GET com
+        hub.verify_token e hub.challenge. O verify_token é configurado no Meta Business Manager
+        ao registrar o webhook do app.
+        Opções:
+        A) Um verify_token por workspace (simples, mas o app Meta é único por workspace).
+        B) Um verify_token por lead_ads_config (por ad account), com lookup no GET.
+           Mais granular, permite múltiplas configs por workspace.
+        C) verify_token global do sistema (hardcoded por ambiente). Mais simples, menos flexível.
+        O endpoint GET /api/webhooks/meta/leadgen recebe hub.verify_token e precisa
+        encontrar qual workspace/config responde a ele.
+      question: "Opção A (por workspace) é suficiente dado que cada workspace tem seu próprio Meta App OAuth, ou precisamos da granularidade por ad_account?"
+      decision_needed: false
+      pm_recommendation: "Opção A (por workspace) para v1. verify_token gerado no onboarding do webhook, armazenado em workspace_settings."
+
+    gap_5:
+      title: "Email hash no CAPI: SHA256 puro ou normalizado primeiro"
+      description: |
+        Meta CAPI exige que email_hash seja SHA256 lowercase do email normalizado
+        (lowercase, trim de espaços). Diferente do phone que usa HMAC-SHA256 com salt.
+        Para o email, Meta especifica SHA256 puro (sem salt) porque é ela quem vai cruzar
+        com seus próprios registros. Se usarmos HMAC-SHA256 com salt (como fazemos com phone),
+        o hash não vai dar match com o registro da Meta.
+        Isso significa que email_hash em 'leads' é SHA256 puro (sem workspace_salt),
+        quebrando o padrão atual de sempre usar HMAC-SHA256 com salt.
+        Impacto: o email_hash armazenado é menos protegido que o phone_hash. Qualquer vazamento
+        de DB expõe hashes de email reversíveis por rainbow table (SHA256 sem salt é enumerável).
+      question: "Aceitar SHA256 puro para email (requisito Meta) mas limitar retenção e acesso? Ou há alternativa?"
+      decision_needed: true
+
+  next_action: "*write-spec para Epic 8 após architect emitir decisões sobre gaps 1, 2, 3 e 5"
