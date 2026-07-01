@@ -1,6 +1,6 @@
 'use server'
 
-import { createSupabaseServerClient } from '@advezo/database'
+import { createSupabaseServerClient, createSupabaseServiceClient } from '@advezo/database'
 import { redirect } from 'next/navigation'
 
 export async function createWorkspace(formData: FormData) {
@@ -10,7 +10,7 @@ export async function createWorkspace(formData: FormData) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  // Check if user already has a workspace
+  // Check if user already has a workspace (RLS ok here — user is authenticated)
   const { data: existing } = await supabase
     .from('workspace_members')
     .select('workspace_id')
@@ -20,8 +20,10 @@ export async function createWorkspace(formData: FormData) {
 
   if (existing) redirect('/dashboard')
 
-  // Create workspace + add owner (trigger auto-creates workspace_settings)
-  const { data: workspace, error } = await supabase
+  // Service client bypasses RLS for INSERT — user has no workspace_id in JWT yet
+  const serviceClient = createSupabaseServiceClient()
+
+  const { data: workspace, error } = await serviceClient
     .from('workspaces')
     .insert({ name, created_by: user.id })
     .select('id')
@@ -31,7 +33,7 @@ export async function createWorkspace(formData: FormData) {
     return { error: 'Erro ao criar workspace. Tente novamente.' }
   }
 
-  const { error: memberError } = await supabase
+  const { error: memberError } = await serviceClient
     .from('workspace_members')
     .insert({ workspace_id: workspace.id, user_id: user.id, role: 'owner' })
 
