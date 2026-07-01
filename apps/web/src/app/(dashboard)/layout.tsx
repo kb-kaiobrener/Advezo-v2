@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation'
-import { createSupabaseServerClient } from '@advezo/database'
+import { createSupabaseServerClient, createSupabaseServiceClient } from '@advezo/database'
 import WorkspaceProvider from '@/components/providers/WorkspaceProvider'
 import QueryProvider from '@/components/providers/QueryProvider'
 import { Sidebar } from '@/components/layout/Sidebar'
@@ -15,7 +15,9 @@ export default async function DashboardLayout({
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const { data: membership } = await supabase
+  // Service client bypassa RLS — garante leitura mesmo sem workspace_id no JWT
+  const serviceClient = createSupabaseServiceClient()
+  const { data: membership } = await serviceClient
     .from('workspace_members')
     .select('workspace_id, role, workspaces(name)')
     .eq('user_id', user.id)
