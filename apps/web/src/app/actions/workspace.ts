@@ -48,7 +48,7 @@ export async function createWorkspace(formData: FormData) {
     return { error: 'Erro ao configurar workspace. Tente novamente.' }
   }
 
-  redirect('/auth/refresh')
+  redirect('/dashboard')
 }
 
 export async function signOut() {

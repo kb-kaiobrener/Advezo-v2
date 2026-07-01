@@ -1,6 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
+import { createClient } from '@supabase/supabase-js'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -10,6 +12,29 @@ import { createWorkspace } from '@/app/actions/workspace'
 export default function OnboardingPage() {
   const [error, setError] = useState<string | null>(null)
   const [isPending, setIsPending] = useState(false)
+  const [isRefreshing, setIsRefreshing] = useState(false)
+  const router = useRouter()
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    if (params.get('refresh') !== '1') return
+
+    setIsRefreshing(true)
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    )
+    supabase.auth.refreshSession().then(({ data }) => {
+      if (data?.session?.user?.user_metadata?.workspace_id) {
+        window.location.href = '/dashboard'
+      } else {
+        setIsRefreshing(false)
+        router.replace('/onboarding')
+      }
+    })
+  }, [router])
+
+  if (isRefreshing) return <div>Carregando...</div>
 
   async function handleCreate(formData: FormData) {
     setError(null)
