@@ -1,27 +1,39 @@
 'use client'
-import { useEffect } from 'react'
+
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { createSupabaseBrowserClient } from '@advezo/database/browser'
 
 export default function RefreshPage() {
+  const [status, setStatus] = useState('iniciando')
   const router = useRouter()
 
   useEffect(() => {
-    async function refresh() {
-      console.log('RefreshPage: iniciando...')
-      const supabase = createSupabaseBrowserClient()
-      console.log('RefreshPage: supabase client criado')
-      const { data, error } = await supabase.auth.refreshSession()
-      console.log('RefreshPage: refreshSession completo', {
-        hasSession: !!data?.session,
-        workspaceId: data?.session?.user?.user_metadata?.workspace_id,
-        error: error?.message
-      })
-      console.log('RefreshPage: redirecionando para /dashboard')
-      router.push('/dashboard')
+    setStatus('useEffect executou')
+
+    const go = async () => {
+      try {
+        setStatus('importando supabase')
+        const { createClient } = await import('@supabase/supabase-js')
+        setStatus('criando client')
+        const supabase = createClient(
+          process.env.NEXT_PUBLIC_SUPABASE_URL!,
+          process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+        )
+        setStatus('refreshing session')
+        const { data, error } = await supabase.auth.refreshSession()
+        setStatus(`done: workspace=${data?.session?.user?.user_metadata?.workspace_id}, error=${error?.message}`)
+        setTimeout(() => router.push('/dashboard'), 2000)
+      } catch (e: unknown) {
+        setStatus(`erro: ${e instanceof Error ? e.message : 'unknown'}`)
+      }
     }
-    refresh()
+
+    go()
   }, [router])
 
-  return <div>Carregando...</div>
+  return (
+    <div style={{ padding: 20 }}>
+      <p>Status: {status}</p>
+    </div>
+  )
 }
