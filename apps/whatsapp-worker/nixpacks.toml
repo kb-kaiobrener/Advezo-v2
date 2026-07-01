@@ -2,10 +2,10 @@
 nixPkgs = ["nodejs_20", "nodePackages.pnpm"]
 
 [phases.install]
-cmds = ["cd /app && pnpm install --no-frozen-lockfile"]
+cmds = ["pnpm install --no-frozen-lockfile"]
 
 [phases.build]
-cmds = ["pnpm build"]
+cmds = ["pnpm --filter @advezo/whatsapp-worker build"]
 
 [start]
-cmd = "pnpm start"
+cmd = "pnpm --filter @advezo/whatsapp-worker start"
