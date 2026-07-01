@@ -29,6 +29,8 @@ export async function proxy(request: NextRequest) {
   const isOnboarding = pathname === '/onboarding'
   const isDashboard = !isAuthRoute && !isOnboarding && pathname !== '/'
 
+  const hasWorkspace = !!user?.user_metadata?.workspace_id
+
   // Unauthenticated access to protected routes → /login
   if (isDashboard && !user) {
     const loginUrl = new URL('/login', request.url)
@@ -38,6 +40,16 @@ export async function proxy(request: NextRequest) {
 
   // Authenticated access to auth pages → /dashboard
   if (isAuthRoute && user) {
+    return NextResponse.redirect(new URL('/dashboard', request.url))
+  }
+
+  // Authenticated but no workspace → /onboarding
+  if (user && !hasWorkspace && !isOnboarding && !isAuthRoute) {
+    return NextResponse.redirect(new URL('/onboarding', request.url))
+  }
+
+  // Authenticated with workspace on /onboarding → /dashboard
+  if (user && hasWorkspace && isOnboarding) {
     return NextResponse.redirect(new URL('/dashboard', request.url))
   }
 
