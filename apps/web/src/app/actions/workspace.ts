@@ -48,11 +48,7 @@ export async function createWorkspace(formData: FormData) {
     return { error: 'Erro ao configurar workspace. Tente novamente.' }
   }
 
-  // Force JWT refresh so custom_access_token_hook injects the new workspace_id
-  const supabaseRefresh = await createSupabaseServerClient()
-  await supabaseRefresh.auth.refreshSession()
-
-  redirect('/dashboard')
+  redirect('/auth/refresh')
 }
 
 export async function signOut() {
