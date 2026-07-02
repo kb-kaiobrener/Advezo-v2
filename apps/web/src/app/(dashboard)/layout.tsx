@@ -24,6 +24,8 @@ export default async function DashboardLayout({
     .limit(1)
     .single()
 
+  console.log('DashboardLayout membership:', JSON.stringify(membership), 'user:', user?.id)
+
   if (!membership) redirect('/onboarding')
 
   type WorkspaceRow = { name: string }
