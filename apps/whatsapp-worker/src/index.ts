@@ -12,6 +12,7 @@
 
 import makeWASocket, {
   DisconnectReason,
+  fetchLatestBaileysVersion,
   useMultiFileAuthState,
   type WASocket,
 } from '@whiskeysockets/baileys'
@@ -88,7 +89,9 @@ async function connect(workspaceId: string, accountId: string): Promise<void> {
     await restoreSession(workspaceId, accountId)
     const { state, saveCreds } = await useMultiFileAuthState(sessionLocalDir(workspaceId, accountId))
 
-    const sock = makeWASocket({ auth: state, logger })
+    const { version } = await fetchLatestBaileysVersion()
+    logger.info({ version }, 'usando versão WA Web')
+    const sock = makeWASocket({ auth: state, logger, version })
     sockets.set(key, sock)
     connectingKeys.delete(key) // socket registrado — guard liberado
 
