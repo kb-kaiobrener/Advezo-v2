@@ -208,6 +208,67 @@ app.get('/qr', async (req: Request, res: Response) => {
   res.status(200).json({ qr })
 })
 
+app.get('/qr-view', (req: Request, res: Response) => {
+  const workspaceId = String(req.query.workspace_id ?? '')
+  const accountId = String(req.query.account_id ?? '')
+  if (!workspaceId || !accountId) {
+    res.status(400).send('<p>workspace_id e account_id são obrigatórios</p>')
+    return
+  }
+
+  const qrEndpoint = `/qr?workspace_id=${encodeURIComponent(workspaceId)}&account_id=${encodeURIComponent(accountId)}`
+
+  res.setHeader('Content-Type', 'text/html; charset=utf-8')
+  res.status(200).send(`<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <title>QR WhatsApp — ${accountId}</title>
+  <style>
+    body { font-family: sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; margin: 0; background: #f5f5f5; }
+    #status { font-size: 1rem; color: #555; margin-bottom: 1rem; }
+    #qr-img { width: 280px; height: 280px; display: none; }
+    #connected { font-size: 1.5rem; font-weight: bold; color: #22c55e; display: none; }
+  </style>
+</head>
+<body>
+  <p id="status">Aguardando QR code...</p>
+  <img id="qr-img" alt="QR Code WhatsApp" />
+  <p id="connected">✅ Conectado!</p>
+  <script>
+    let hadQr = false
+    const img = document.getElementById('qr-img')
+    const status = document.getElementById('status')
+    const connected = document.getElementById('connected')
+
+    async function poll() {
+      try {
+        const res = await fetch('${qrEndpoint}')
+        const data = await res.json()
+        if (data.qr) {
+          hadQr = true
+          img.src = data.qr
+          img.style.display = 'block'
+          status.textContent = 'Escaneie o QR com o WhatsApp'
+          connected.style.display = 'none'
+        } else if (hadQr) {
+          img.style.display = 'none'
+          status.style.display = 'none'
+          connected.style.display = 'block'
+          return // para o polling
+        }
+      } catch (_) {
+        status.textContent = 'Erro ao buscar QR — tentando novamente...'
+      }
+      setTimeout(poll, 2000)
+    }
+
+    poll()
+  </script>
+</body>
+</html>`)
+})
+
 app.post('/send', async (req: Request, res: Response) => {
   const { workspace_id, account_id, to, text } = req.body as {
     workspace_id?: string
