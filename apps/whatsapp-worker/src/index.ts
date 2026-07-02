@@ -44,6 +44,8 @@ const accountKey = (workspaceId: string, accountId: string) => `${workspaceId}:$
 const qrCache = new Map<string, string>()
 /** Sockets ativos por conta, para evitar conexões duplicadas. */
 const sockets = new Map<string, WASocket>()
+/** Keys com connect() em andamento — guard contra race condition em /qr. */
+const connectingKeys = new Set<string>()
 /** Circuit breakers por conta. */
 const breakers = new Map<string, CircuitBreaker>()
 
@@ -78,12 +80,17 @@ async function connect(workspaceId: string, accountId: string): Promise<void> {
   const key = accountKey(workspaceId, accountId)
   const breaker = getBreaker(workspaceId, accountId)
 
-  // Restaura sessão do Storage (AC 3.1.3) antes de abrir o socket.
-  await restoreSession(workspaceId, accountId)
-  const { state, saveCreds } = await useMultiFileAuthState(sessionLocalDir(workspaceId, accountId))
+  // Marca como em andamento ANTES do primeiro await — guard síncrono contra race condition.
+  connectingKeys.add(key)
 
-  const sock = makeWASocket({ auth: state, logger })
-  sockets.set(key, sock)
+  try {
+    // Restaura sessão do Storage (AC 3.1.3) antes de abrir o socket.
+    await restoreSession(workspaceId, accountId)
+    const { state, saveCreds } = await useMultiFileAuthState(sessionLocalDir(workspaceId, accountId))
+
+    const sock = makeWASocket({ auth: state, logger })
+    sockets.set(key, sock)
+    connectingKeys.delete(key) // socket registrado — guard liberado
 
   // Persiste credenciais no Storage a cada atualização (upload contínuo).
   sock.ev.on('creds.update', async () => {
@@ -141,6 +148,10 @@ async function connect(workspaceId: string, accountId: string): Promise<void> {
       setTimeout(() => void connect(workspaceId, accountId), delayMs)
     }
   })
+  } catch (err) {
+    connectingKeys.delete(key)
+    throw err
+  }
 }
 
 // ── Servidor Express ─────────────────────────────────────────────────────────
@@ -160,8 +171,8 @@ app.get('/qr', async (req: Request, res: Response) => {
   }
 
   const key = accountKey(workspaceId, accountId)
-  // Se ainda não há socket para a conta, inicia a conexão (gera o QR).
-  if (!sockets.has(key)) {
+  // Inicia conexão só se não há socket ativo E não há connect() em andamento.
+  if (!sockets.has(key) && !connectingKeys.has(key)) {
     try {
       await connect(workspaceId, accountId)
     } catch (err) {
