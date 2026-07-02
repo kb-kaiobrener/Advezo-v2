@@ -10,7 +10,10 @@ export async function createWorkspace(formData: FormData) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const { data: existing } = await supabase
+  // Service client bypassa RLS — JWT ainda não tem workspace_id durante onboarding
+  const serviceClient = createSupabaseServiceClient()
+
+  const { data: existing } = await serviceClient
     .from('workspace_members')
     .select('workspace_id')
     .eq('user_id', user.id)
@@ -18,8 +21,6 @@ export async function createWorkspace(formData: FormData) {
     .single()
 
   if (existing) return { success: true }
-
-  const serviceClient = createSupabaseServiceClient()
 
   const { data: workspace, error } = await serviceClient
     .from('workspaces')

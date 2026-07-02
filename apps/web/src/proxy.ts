@@ -43,12 +43,6 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(new URL('/dashboard', request.url))
   }
 
-  // Authenticated but no workspace → /onboarding (com ?refresh=1 se vindo do /dashboard)
-  if (user && !hasWorkspace && !isOnboarding && !isAuthRoute) {
-    const destination = pathname === '/dashboard' ? '/onboarding?refresh=1' : '/onboarding'
-    return NextResponse.redirect(new URL(destination, request.url))
-  }
-
   // Authenticated with workspace on /onboarding → /dashboard
   if (user && hasWorkspace && isOnboarding) {
     return NextResponse.redirect(new URL('/dashboard', request.url))
