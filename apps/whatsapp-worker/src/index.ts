@@ -112,7 +112,11 @@ async function connect(workspaceId: string, accountId: string): Promise<void> {
 
     if (connection === 'open') {
       qrCache.delete(key)
-      await breaker.recordSuccess(workspaceId, accountId)
+      try {
+        await breaker.recordSuccess(workspaceId, accountId)
+      } catch (err) {
+        logger.error({ err, accountId }, 'falha ao registrar sucesso no circuit breaker')
+      }
       logger.info({ accountId }, 'whatsapp conectado')
     }
 
@@ -131,12 +135,22 @@ async function connect(workspaceId: string, accountId: string): Promise<void> {
         logger.warn({ accountId }, 'logout detectado — não reconectando')
         qrCache.delete(key)
         sockets.delete(key)
-        await markDisconnected(workspaceId, accountId)
+        try {
+          await markDisconnected(workspaceId, accountId)
+        } catch (err) {
+          logger.error({ err, accountId }, 'falha ao marcar conta como desconectada no banco')
+        }
         return
       }
 
       // Queda transitória: registra no circuit breaker.
-      const { paused, failureCount } = await breaker.recordFailure(workspaceId, accountId)
+      let paused = false
+      let failureCount = 1
+      try {
+        ;({ paused, failureCount } = await breaker.recordFailure(workspaceId, accountId))
+      } catch (err) {
+        logger.error({ err, accountId }, 'falha ao registrar falha no circuit breaker — reconectando com delay padrão')
+      }
       if (paused) {
         logger.error({ accountId, failureCount }, 'circuit breaker ABERTO — parando reconexão')
         sockets.delete(key)
