@@ -29,7 +29,12 @@ export default function OnboardingPage() {
         process.env.NEXT_PUBLIC_SUPABASE_URL!,
         process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
       )
-      await supabase.auth.refreshSession()
+      const { data, error } = await supabase.auth.refreshSession()
+      console.log('refresh result:', {
+        workspaceId: data?.session?.user?.user_metadata?.workspace_id,
+        error: error?.message
+      })
+      await new Promise(resolve => setTimeout(resolve, 1000))
       window.location.href = '/dashboard'
     }
   }
