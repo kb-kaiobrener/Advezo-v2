@@ -145,6 +145,7 @@ async function connect(workspaceId: string, accountId: string): Promise<void> {
 
 // ── Servidor Express ─────────────────────────────────────────────────────────
 const app = express()
+app.use(express.json())
 
 app.get('/health', (_req: Request, res: Response) => {
   res.status(200).json({ status: 'ok', uptime: Math.floor(process.uptime()) })
@@ -177,6 +178,35 @@ app.get('/qr', async (req: Request, res: Response) => {
     return
   }
   res.status(200).json({ qr })
+})
+
+app.post('/send', async (req: Request, res: Response) => {
+  const { workspace_id, account_id, to, text } = req.body as {
+    workspace_id?: string
+    account_id?: string
+    to?: string
+    text?: string
+  }
+
+  if (!workspace_id || !account_id || !to || !text) {
+    res.status(400).json({ error: 'workspace_id, account_id, to e text são obrigatórios' })
+    return
+  }
+
+  const key = accountKey(workspace_id, account_id)
+  const sock = sockets.get(key)
+  if (!sock) {
+    res.status(404).json({ error: 'sem socket ativo para essa conta' })
+    return
+  }
+
+  try {
+    await sock.sendMessage(`${to}@s.whatsapp.net`, { text })
+    res.status(200).json({ ok: true })
+  } catch (err) {
+    logger.error({ err, account_id, to }, 'falha ao enviar mensagem')
+    res.status(500).json({ error: 'falha ao enviar mensagem' })
+  }
 })
 
 async function main(): Promise<void> {
