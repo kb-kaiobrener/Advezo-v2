@@ -49,7 +49,7 @@ export default function OnboardingPage() {
         {error && (
           <p className="text-sm text-red-600 bg-red-50 rounded p-2">{error}</p>
         )}
-        <form action={handleCreate} className="space-y-4">
+        <form onSubmit={(e) => { e.preventDefault(); handleCreate(new FormData(e.currentTarget)) }} className="space-y-4">
           <div className="space-y-1">
             <Label htmlFor="name">Nome do workspace</Label>
             <Input
