@@ -76,6 +76,16 @@ async function markDisconnected(workspaceId: string, accountId: string): Promise
     .eq('account_id', accountId)
 }
 
+/** Marca a conta como conectada no banco (connection='open'). */
+async function markConnected(workspaceId: string, accountId: string): Promise<void> {
+  const supabase = createSupabaseServiceClient()
+  await supabase
+    .from('whatsapp_accounts')
+    .update({ status: 'connected' })
+    .eq('workspace_id', workspaceId)
+    .eq('account_id', accountId)
+}
+
 // ── Conexão Baileys ──────────────────────────────────────────────────────────
 async function connect(workspaceId: string, accountId: string): Promise<void> {
   const key = accountKey(workspaceId, accountId)
@@ -119,6 +129,11 @@ async function connect(workspaceId: string, accountId: string): Promise<void> {
         await breaker.recordSuccess(workspaceId, accountId)
       } catch (err) {
         logger.error({ err, accountId }, 'falha ao registrar sucesso no circuit breaker')
+      }
+      try {
+        await markConnected(workspaceId, accountId)
+      } catch (err) {
+        logger.error({ err, accountId }, 'falha ao marcar conta como conectada no banco')
       }
       logger.info({ accountId }, 'whatsapp conectado')
     }
@@ -296,6 +311,57 @@ app.post('/send', async (req: Request, res: Response) => {
     logger.error({ err, account_id, to }, 'falha ao enviar mensagem')
     res.status(500).json({ error: 'falha ao enviar mensagem' })
   }
+})
+
+app.get('/status', (req: Request, res: Response) => {
+  const workspaceId = String(req.query.workspace_id ?? '')
+  const accountId = String(req.query.account_id ?? '')
+  if (!workspaceId || !accountId) {
+    res.status(400).json({ error: 'workspace_id e account_id são obrigatórios' })
+    return
+  }
+
+  const key = accountKey(workspaceId, accountId)
+  let status: 'disconnected' | 'connecting' | 'connected'
+  if (sockets.has(key) && !qrCache.has(key)) {
+    status = 'connected'
+  } else if (connectingKeys.has(key) || qrCache.has(key)) {
+    status = 'connecting'
+  } else {
+    status = 'disconnected'
+  }
+
+  res.status(200).json({ status, qr: qrCache.get(key) ?? null })
+})
+
+app.post('/disconnect', async (req: Request, res: Response) => {
+  const { workspace_id, account_id } = req.body as {
+    workspace_id?: string
+    account_id?: string
+  }
+  if (!workspace_id || !account_id) {
+    res.status(400).json({ error: 'workspace_id e account_id são obrigatórios' })
+    return
+  }
+
+  const key = accountKey(workspace_id, account_id)
+  const sock = sockets.get(key)
+  qrCache.delete(key)
+  sockets.delete(key)
+  connectingKeys.delete(key)
+
+  try {
+    if (sock) await sock.logout()
+  } catch (err) {
+    logger.warn({ err, account_id }, 'erro ao desconectar socket (ignorado)')
+  }
+  try {
+    await markDisconnected(workspace_id, account_id)
+  } catch (err) {
+    logger.error({ err, account_id }, 'falha ao marcar conta como desconectada no banco')
+  }
+
+  res.status(200).json({ ok: true })
 })
 
 async function main(): Promise<void> {
