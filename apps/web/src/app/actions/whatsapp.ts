@@ -1,5 +1,6 @@
 'use server'
 
+import { revalidatePath } from 'next/cache'
 import { createSupabaseServerClient, createSupabaseServiceClient } from '@advezo/database'
 
 const WORKER_URL = process.env.WHATSAPP_WORKER_URL!
@@ -39,6 +40,7 @@ export async function connectWhatsApp(clientId: string, accountId: string) {
     )
 
   if (dbError) return { error: 'Erro ao salvar conexão' }
+  revalidatePath(`/clients/${clientId}/configuracoes`)
   return { success: true, workspaceId: membership!.workspace_id }
 }
 
@@ -55,6 +57,7 @@ export async function confirmWhatsAppConnected(clientId: string, accountId: stri
     .eq('account_id', accountId)
 
   if (dbError) return { error: 'Erro ao confirmar conexão' }
+  revalidatePath(`/clients/${clientId}/configuracoes`)
   return { success: true }
 }
 
@@ -85,10 +88,11 @@ export async function disconnectWhatsApp(clientId: string, accountId: string) {
     .eq('account_id', accountId)
 
   if (dbError) return { error: 'Erro ao atualizar status' }
+  revalidatePath(`/clients/${clientId}/configuracoes`)
   return { success: true }
 }
 
-export async function resetCircuitBreaker(accountId: string) {
+export async function resetCircuitBreaker(clientId: string, accountId: string) {
   const { error, membership } = await getWorkspaceMembership()
   if (error) return { error }
 
@@ -100,6 +104,7 @@ export async function resetCircuitBreaker(accountId: string) {
     .eq('account_id', accountId)
 
   if (dbError) return { error: 'Erro ao resetar circuit breaker' }
+  revalidatePath(`/clients/${clientId}/configuracoes`)
   return { success: true }
 }
 

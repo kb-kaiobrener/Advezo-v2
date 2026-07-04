@@ -1,0 +1,8 @@
+schema: 1
+story: '3.4'
+gate: PASS
+status_reason: 'Todos os 5 ACs atendidos. 19 testes passando (3 cenários obrigatórios AC 3.4.5 + 16 adicionais). Lógica pura bem isolada, formatadores PT-BR corretos, fix timezone UTC confirmado.'
+reviewer: 'Quinn'
+updated: '2026-07-04T14:40:00Z'
+top_issues: []
+waiver: { active: false }

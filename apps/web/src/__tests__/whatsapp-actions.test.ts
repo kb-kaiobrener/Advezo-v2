@@ -1,5 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
+vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }))
+
 vi.mock('@advezo/database', () => ({
   createSupabaseServerClient: vi.fn(),
   createSupabaseServiceClient: vi.fn(),

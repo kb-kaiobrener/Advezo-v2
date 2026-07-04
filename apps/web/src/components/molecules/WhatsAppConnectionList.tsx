@@ -70,7 +70,7 @@ export function WhatsAppConnectionList({ clientId, workspaceId, connections }: P
 
   function handleResetCb(accountId: string) {
     startTransition(async () => {
-      await resetCircuitBreaker(accountId)
+      await resetCircuitBreaker(clientId, accountId)
     })
   }
 

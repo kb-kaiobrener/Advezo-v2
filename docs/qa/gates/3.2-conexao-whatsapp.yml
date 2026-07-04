@@ -1,0 +1,16 @@
+schema: 1
+story: '3.2'
+gate: CONCERNS
+status_reason: 'ACs 3.2.1–3.2.6 e 3.2.8 implementados. Dois gaps médios não bloqueantes: revalidatePath ausente nas actions e status de conexão stale após auto-reconexão do worker.'
+reviewer: 'Quinn'
+updated: '2026-07-04T14:40:00Z'
+top_issues:
+  - id: 'MNT-001'
+    severity: medium
+    finding: 'Server actions (disconnectWhatsApp, confirmWhatsAppConnected, resetCircuitBreaker) não chamam revalidatePath — UI não atualiza automaticamente após ações, usuário precisa recarregar a página manualmente'
+    suggested_action: 'Adicionar revalidatePath(/clients/${clientId}/configuracoes) ao final de cada server action que muta estado de conexão'
+  - id: 'REQ-001'
+    severity: medium
+    finding: 'AC 3.2.7 parcial: markConnected no worker atualiza whatsapp_accounts.status mas não whatsapp_connections.status — após auto-reconexão (restart do Railway), a UI exibe status stale (Desconectado) mesmo com socket ativo'
+    suggested_action: 'Considerar atualizar também whatsapp_connections.status via JOIN reverso no markConnected, ou aceitar este gap como dívida técnica a resolver na Story 3.5/3.6'
+waiver: { active: false }

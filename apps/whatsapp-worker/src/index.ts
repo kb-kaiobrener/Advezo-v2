@@ -66,24 +66,38 @@ function disconnectStatusCode(error: unknown): number | undefined {
   return out?.statusCode
 }
 
-/** Marca a conta como desconectada no banco (logout manual). */
+/** Marca a conta como desconectada nas duas tabelas (worker + client-facing). */
 async function markDisconnected(workspaceId: string, accountId: string): Promise<void> {
   const supabase = createSupabaseServiceClient()
-  await supabase
-    .from('whatsapp_accounts')
-    .update({ status: 'disconnected' })
-    .eq('workspace_id', workspaceId)
-    .eq('account_id', accountId)
+  await Promise.all([
+    supabase
+      .from('whatsapp_accounts')
+      .update({ status: 'disconnected' })
+      .eq('workspace_id', workspaceId)
+      .eq('account_id', accountId),
+    supabase
+      .from('whatsapp_connections')
+      .update({ status: 'disconnected', connected_at: null })
+      .eq('workspace_id', workspaceId)
+      .eq('account_id', accountId),
+  ])
 }
 
-/** Marca a conta como conectada no banco (connection='open'). */
+/** Marca a conta como conectada nas duas tabelas (worker + client-facing). */
 async function markConnected(workspaceId: string, accountId: string): Promise<void> {
   const supabase = createSupabaseServiceClient()
-  await supabase
-    .from('whatsapp_accounts')
-    .update({ status: 'connected' })
-    .eq('workspace_id', workspaceId)
-    .eq('account_id', accountId)
+  await Promise.all([
+    supabase
+      .from('whatsapp_accounts')
+      .update({ status: 'connected' })
+      .eq('workspace_id', workspaceId)
+      .eq('account_id', accountId),
+    supabase
+      .from('whatsapp_connections')
+      .update({ status: 'connected', connected_at: new Date().toISOString() })
+      .eq('workspace_id', workspaceId)
+      .eq('account_id', accountId),
+  ])
 }
 
 // ── Conexão Baileys ──────────────────────────────────────────────────────────
