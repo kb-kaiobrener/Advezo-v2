@@ -97,7 +97,13 @@ execution_plan:
       Requer worker rodando — modo interativo obrigatório.
       3.4 (Geração de relatório): lógica pura, testável unitariamente sem conexão WhatsApp.
       Pode rodar em paralelo com 3.2 (sem dependência entre si).
-    status: "pending"
+    status: "done"
+    completed_code_at: "2026-07-04"
+    qa_result: >
+      3.2: CONCERNS→Done. Concerns não bloqueantes resolvidos antes do push final:
+      REQ-001 (markConnected/markDisconnected agora sincronizam whatsapp_connections)
+      e MNT-001 (revalidatePath adicionado nas server actions). 256 testes passando.
+      3.4: PASS. 19 testes passando (3 cenários obrigatórios AC 3.4.5 + 16 adicionais).
 
   wave_3:
     stories: ["3.3", "3.7"]
@@ -176,4 +182,4 @@ security_constraints:
   - "client_id RLS enforced — painel cliente (3.8) nunca acessa outro workspace/client"
   - "cb_paused_at: circuit breaker protege o número WA de banimento por spam de reconexão"
 
-current_wave: 2
+current_wave: 3
