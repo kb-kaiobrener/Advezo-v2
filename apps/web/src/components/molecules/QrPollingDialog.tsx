@@ -22,6 +22,8 @@ export function QrPollingDialog({ clientId, accountId, workspaceId, onClose }: P
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const startedRef = useRef(false)
+  // true após o primeiro QR recebido — impede voltar a 'waiting' com closure stale
+  const hadQrRef = useRef(false)
 
   const stopPolling = useCallback(() => {
     if (pollRef.current) clearInterval(pollRef.current)
@@ -55,15 +57,18 @@ export function QrPollingDialog({ clientId, accountId, workspaceId, onClose }: P
       const qrData = await qrRes.json() as { qr?: string | null }
 
       if (qrData.qr) {
+        hadQrRef.current = true
         setQrSrc(qrData.qr)
         setState('scanning')
-      } else if (state !== 'scanning') {
+      } else if (!hadQrRef.current) {
+        // QR ainda não chegou — mantém 'waiting'
         setState('waiting')
       }
+      // se hadQrRef=true mas QR sumiu: QR foi escaneado, aguarda status 'connected'
     } catch {
       // network error — keep polling
     }
-  }, [workspaceId, accountId, handleConnected, state])
+  }, [workspaceId, accountId, handleConnected])
 
   useEffect(() => {
     if (startedRef.current) return

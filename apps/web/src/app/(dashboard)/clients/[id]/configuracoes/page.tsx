@@ -1,7 +1,7 @@
 import { notFound } from 'next/navigation'
 import { createSupabaseServerClient, createSupabaseServiceClient } from '@advezo/database'
 import { WhatsAppConnectionList } from '@/components/molecules/WhatsAppConnectionList'
-import { connectWhatsApp } from '@/app/actions/whatsapp'
+import { ConnectNewWhatsApp } from '@/components/molecules/ConnectNewWhatsApp'
 import type { Client } from '@advezo/types'
 
 async function getPageData(clientId: string) {
@@ -45,32 +45,6 @@ async function getPageData(clientId: string) {
   }
 }
 
-async function ConnectNewButton({ clientId, workspaceId }: { clientId: string; workspaceId: string }) {
-  async function handleConnect(formData: FormData) {
-    'use server'
-    const accountId = String(formData.get('account_id') ?? '').trim().replace(/\D/g, '')
-    if (!accountId) return
-    await connectWhatsApp(clientId, accountId)
-  }
-
-  return (
-    <form action={handleConnect} className="flex gap-2">
-      <input
-        type="text"
-        name="account_id"
-        placeholder="Ex: 5511999998888"
-        className="flex-1 rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-      />
-      <button
-        type="submit"
-        className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
-      >
-        Conectar WhatsApp
-      </button>
-    </form>
-  )
-}
-
 export default async function ClientConfiguracoesPage({
   params,
 }: {
@@ -92,7 +66,7 @@ export default async function ClientConfiguracoesPage({
       <section className="space-y-4">
         <h2 className="text-base font-semibold text-foreground">WhatsApp</h2>
 
-        <ConnectNewButton clientId={id} workspaceId={workspaceId} />
+        <ConnectNewWhatsApp clientId={id} workspaceId={workspaceId} />
 
         <WhatsAppConnectionList
           clientId={id}
