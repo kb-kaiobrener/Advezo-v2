@@ -26,8 +26,8 @@ async function handleDashboardPasswordGate(request: NextRequest): Promise<NextRe
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
   if (!supabaseUrl || !serviceKey) {
-    // Sem credenciais não há como validar — deixa a rota seguir; page.tsx decide.
-    return NextResponse.next()
+    // Sem credenciais não há como validar — tratar como não autenticado (fail-closed).
+    return NextResponse.redirect(new URL(`/dashboard/${token}/senha`, request.url))
   }
 
   const res = await fetch(
