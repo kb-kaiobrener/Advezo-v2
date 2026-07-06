@@ -1,0 +1,69 @@
+schema: 1
+story: '3.7'
+slug: dashboard-compartilhavel
+gate: PASS
+status_reason: 'Todos os ACs implementáveis (3.7.1–3.7.7) verificados no código; segurança da service key, ISR e gate de senha fail-closed corretos. AC 3.7.8 corretamente marcado pendente (medição Lighthouse exige deploy Vercel).'
+reviewer: 'Quinn (Test Architect)'
+updated: '2026-07-06T20:20:00Z'
+
+mode: YOLO
+focus: [security, rls, performance]
+
+acceptance_criteria:
+  - id: 'AC 3.7.1'
+    status: PASS
+    note: 'DashboardConfigForm: multi-checkbox (8 métricas de AVAILABLE_METRICS), upload logo PNG/JPEG, senha opcional, botão Gerar/Atualizar link. saveDashboardConfig preserva token existente.'
+  - id: 'AC 3.7.2'
+    status: PASS
+    note: "Token = encode(extensions.gen_random_bytes(20),'hex') (hex-40) via DEFAULT da migration; re-save busca config existente e reencaminha o token — nunca gera novo. Upsert onConflict workspace_id,client_id."
+  - id: 'AC 3.7.3'
+    status: PASS
+    note: 'page.tsx é Server Component puro usando createSupabaseServiceClient() (server-side). Valida is_active=true, notFound() se ausente. Service key nunca exposta (não NEXT_PUBLIC_). NFR-2 atendido.'
+  - id: 'AC 3.7.4'
+    status: PASS
+    note: 'Dashboard exibe <Image> do logo, nome do cliente, período (mês atual PT-BR), métricas formatadas PT-BR via formatMetricValue, e última atualização (synced_at) formatada pt-BR.'
+  - id: 'AC 3.7.5'
+    status: PASS
+    note: 'Guard no proxy.ts: sem senha → next() (ISR); com senha sem cookie válido → redirect /senha. Route Handler valida senha (HMAC+timingSafeEqual) e seta cookie httpOnly dash_auth_[token], maxAge 24h. Cookie HMAC verificado por WebCrypto no Edge nas próximas visitas.'
+  - id: 'AC 3.7.6'
+    status: PASS
+    note: 'Botão Copiar link (navigator.clipboard.writeText) e Desativar link (deactivateDashboard → is_active=false → page.tsx notFound/404). Reativação via saveDashboardConfig mantém o mesmo token.'
+  - id: 'AC 3.7.7'
+    status: PASS
+    note: 'uploadDashboardLogo valida size ≤ 2MB e mime (image/png|image/jpeg) ANTES do upload ao Storage. Bucket dashboard-logos público, chave {workspaceId}/{clientId}/logo.{ext}, logo_url persistida.'
+  - id: 'AC 3.7.8'
+    status: PENDING
+    note: 'Requisitos técnicos implementados (revalidate=300, <Image>, Server Component sem fetch client-side/JS, Tailwind inline, agregação server-side). Medição Lighthouse ≥ 90 / LCP < 2s exige deploy Vercel — fora de escopo desta review.'
+
+security_checks:
+  - name: 'Dashboard sem senha → acesso direto (ISR)'
+    result: PASS
+    evidence: 'proxy.ts:53 — if (!config.password_hash) return NextResponse.next()'
+  - name: 'Dashboard com senha sem cookie → redirect /senha'
+    result: PASS
+    evidence: 'proxy.ts:80 redirect /senha; /api/dashboard/* liberado (isDashboardAuthApi proxy.ts:95-98); /senha excluído do gate (proxy.ts:22, evita loop)'
+  - name: 'Fail-closed sem SUPABASE_SERVICE_ROLE_KEY / URL'
+    result: PASS
+    evidence: 'proxy.ts:28-31 — sem credenciais → redirect /senha (não next())'
+  - name: 'timingSafeEqual na comparação de hash (não ===/!==)'
+    result: PASS
+    evidence: 'route.ts:53-55 — length-guard + crypto.timingSafeEqual'
+  - name: 'revalidate=300 e zero cookies()/headers() em page.tsx'
+    result: PASS
+    evidence: 'page.tsx:15 revalidate=300; grep cookies()/headers() = apenas comentários'
+  - name: 'images.remotePatterns cobre hostname Supabase do projeto'
+    result: PASS
+    evidence: 'next.config.ts hostname mmxfmawymemgopvbyofq.supabase.co == NEXT_PUBLIC_SUPABASE_URL'
+
+tests:
+  file: 'apps/web/src/__tests__/dashboard-actions.test.ts'
+  result: '11/11 PASS'
+  suite_note: 'workspace-actions.test.ts (1 falha) é pré-existente e fora do escopo desta story (mock @advezo/database sem createSupabaseServiceClient) — falha em isolamento também.'
+
+top_issues:
+  - id: 'REL-001'
+    severity: low
+    finding: 'Em handleDashboardPasswordGate, falha de rede no fetch REST de password_hash resulta em config indefinida → next() (fail-open no lookup). Não há bypass de dados protegidos (page.tsx faz notFound() se config ausente e também depende do service fetch), mas é inconsistente com o fail-closed aplicado à ausência de credenciais.'
+    suggested_action: 'Opcional: tratar !res.ok como fail-closed (redirect /senha) para alinhar comportamento. Não bloqueante — nenhum dado protegido é servido sem cookie válido.'
+
+waiver: { active: false }

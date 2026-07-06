@@ -1,0 +1,104 @@
+schema: 1
+story: '3.3'
+slug: config-relatorios
+title: Configuração de Relatórios Automáticos por Cliente
+gate: PASS
+status_reason: >-
+  Todos os 6 ACs implementados e cobertos por testes (15/15 PASS). Validação
+  server-side de destination_id ocorre antes de auth/DB; toggle protegido contra
+  IDOR por filtro de workspace. Typecheck e lint limpos no escopo da story.
+reviewer: 'Quinn'
+updated: '2026-07-06T20:20:00Z'
+
+acceptance_criteria:
+  - id: 'AC-3.3.1'
+    status: met
+    note: >-
+      Formulário condicional em ReportScheduleForm — send_day exibido só para
+      weekly/biweekly (dropdown Seg-Dom) e monthly (número 1-28), oculto para daily;
+      hora padrão 09:00.
+  - id: 'AC-3.3.2'
+    status: met
+    note: >-
+      Individual /^\d{10,15}$/ após strip de +/espaços; grupo /^\d+@g\.us$/.
+      Validado client-side e server-side (report-schedules.ts linhas 50-59).
+  - id: 'AC-3.3.3'
+    status: met
+    note: >-
+      Upsert com onConflict 'workspace_id,client_id'; migration 000013 com
+      UNIQUE (workspace_id, client_id).
+  - id: 'AC-3.3.4'
+    status: met
+    note: >-
+      toggleReportSchedule atualiza apenas is_active; sem delete. Filtro por
+      id + workspace_id (proteção IDOR).
+  - id: 'AC-3.3.5'
+    status: met
+    note: >-
+      previewReport chama generateReport(workspaceId, clientId, {from: hoje-30d, to: hoje});
+      exibido em <pre> scrollável no ReportPreviewModal; nenhum envio real.
+  - id: 'AC-3.3.6'
+    status: met
+    note: >-
+      Query com maybeSingle(); estado "Não configurado" quando sem schedule;
+      carrega valores quando existe; "Salvar" é o único ponto de persistência.
+
+evidence:
+  tests_run: 15
+  tests_passed: 15
+  test_command: 'pnpm --filter @advezo/web exec vitest run report-schedules-actions'
+  typecheck: 'PASS (tsc --noEmit limpo após limpar .next/dev/types stale)'
+  lint: 'PASS (0 errors nos arquivos do escopo)'
+  files_reviewed:
+    - apps/web/src/app/actions/report-schedules.ts
+    - apps/web/src/components/molecules/ReportScheduleForm.tsx
+    - apps/web/src/components/molecules/ReportPreviewModal.tsx
+    - apps/web/src/app/(dashboard)/clients/[id]/configuracoes/page.tsx
+    - apps/web/src/__tests__/report-schedules-actions.test.ts
+    - supabase/migrations/20260101000013_report_schedules.sql
+
+quality_checks:
+  code_review: PASS
+  unit_tests: PASS
+  acceptance_criteria: PASS
+  no_regressions: PASS
+  performance: PASS
+  security: PASS
+  documentation: PASS
+
+security_notes:
+  - >-
+    saveReportSchedule valida destination_id ANTES de qualquer acesso ao banco e
+    ANTES de checar auth — confirmado por teste (mockCreateServiceClient não é
+    chamado em input inválido).
+  - >-
+    toggleReportSchedule filtra por workspace_id além de id — evita IDOR
+    cross-workspace. Confirmado por teste.
+  - >-
+    RLS habilitado com workspace_isolation policy; grants para service_role e
+    authenticated.
+
+top_issues:
+  - id: 'REL-001'
+    severity: low
+    finding: >-
+      send_day não tem validação de faixa server-side nem CHECK constraint no DB
+      (0-6 weekly/biweekly, 1-28 monthly). UI constrange, mas request forjado
+      poderia persistir valor fora de faixa.
+    suggested_action: >-
+      Fora do escopo desta story (validação server-side foi escopada só para
+      destination_id — Change Log entry 5). O cron da Story 3.5 deve tratar
+      send_day defensivamente ou adicionar CHECK em migration futura.
+  - id: 'REL-002'
+    severity: low
+    finding: >-
+      send_time não validado server-side (formato HH:MM). Postgres time rejeita
+      valor malformado no DB, retornando erro genérico "Erro ao salvar configuração".
+    suggested_action: >-
+      Aceitável — DB é o backstop. Nenhuma ação requerida.
+
+carry_forward_to_story_3_5:
+  - >-
+    Cron consumidor deve tratar send_day defensivamente (sem CHECK constraint no DB).
+
+waiver: { active: false }
