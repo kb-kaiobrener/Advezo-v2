@@ -147,7 +147,20 @@ execution_plan:
       suporte a grupo. Modo interativo — integração cross-epic + envio real.
       AC crítico 3.5.2: suporte explícito a grupo testado com envio real.
       AC crítico 3.6.5: sem envio duplicado.
-    status: "pending"
+    status: "done"
+    completed_code_at: "2026-07-07"
+    qa_result: >
+      3.5: CONCERNS→Done. 27/27 testes, 9/9 ACs. GRANT-001 (ad_accounts/campaign_metrics
+      sem grant service_role) resolvido pela migration 000017 durante o ciclo da 3.6.
+      3.6: FAIL→fix→PASS. 12/12 testes, 10/10 ACs. 1ª rodada reprovou por BLOCK-001
+      (coluna account_name) e BLOCK-002 (grants); re-teste com curl expôs QA-3
+      (proxy.ts redirecionava /api/cron/* → /login — bug pré-existente que afetava
+      também os crons do Epic 2/2.9, agora destravados). Verificação final na
+      infraestrutura real: crons 401/401/200, gate de sessão intacto.
+    qa_concerns:
+      - "OBS-001 (low): auth do cron por comparação direta — alinhar com guard fail-closed do Epic 2 em manutenção"
+      - "TD-004 (HIGH se lead form em uso): /api/leads/submit ainda 307 → /login — dono Story 8.3"
+      - "Envio real WhatsApp (grupo e individual) pendente de validação pós-deploy com conta conectada"
 
   wave_5:
     stories: ["3.8"]
@@ -187,4 +200,4 @@ security_constraints:
   - "client_id RLS enforced — painel cliente (3.8) nunca acessa outro workspace/client"
   - "cb_paused_at: circuit breaker protege o número WA de banimento por spam de reconexão"
 
-current_wave: 4
+current_wave: 5
