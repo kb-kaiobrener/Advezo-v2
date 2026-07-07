@@ -586,20 +586,6 @@ O @architect deve favorecer decisões que não bloqueiem velocidade de entrega n
 
 ---
 
-#### Story 3.8 — Painel Logado do Cliente Final
-
-> Como cliente final de uma agência, quero acessar um painel com login próprio para ver os dados das minhas contas de anúncio, sem ter acesso às contas dos demais clientes.
-
-**Acceptance Criteria:**
-1. Fluxo de convite: gestor gera convite por email; cliente cria senha e acessa `/cliente`
-2. RLS garante acesso apenas ao próprio `client_id` — acesso a outro cliente retorna erro 403 (testado explicitamente)
-3. Painel exibe métricas das contas vinculadas, filtro de período e indicadores de saúde por cor
-4. Cliente não tem acesso a: ações de pausar/ajustar, configurações de workspace, dados de outros clientes
-5. UI simplificada — apenas visualização, sem funcionalidades de gestão
-6. Sessão expira em 7 dias sem refresh automático prolongado
-
----
-
 ### Epic 4 — Rastreamento Fase 1: Origem
 
 > ✅ **Pré-requisito:** Story 3.1 (Migração Baileys) com QA gate PASS antes de iniciar qualquer story deste epic.

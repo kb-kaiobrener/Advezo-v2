@@ -165,14 +165,18 @@ execution_plan:
   wave_5:
     stories: ["3.8"]
     description: "Painel logado do cliente final"
-    mode: "yolo"
-    qa_gate: "yolo"
+    mode: "interactive"
+    qa_gate: "completo"
     gate_before_advance: false
     parallel: false
     depends_on: ["wave_4"]
     notes: >
       3.8 (Painel cliente): fluxo de convite por email, /cliente rota, RLS por client_id.
       AC crítico 3.8.2: RLS garante isolamento — acesso a outro client_id → 403 (testado explicitamente).
+      MODO ALTERADO (2026-07-07, @pm): yolo → interactive + gate completo. Story toca auth
+      (custom_access_token_hook), RLS e isolamento de dados de cliente — critério de segurança
+      exige detalhe máximo. AC 3.8.3 (anti-spoofing do claim client_id no hook) é derivado
+      de segurança: sem strip do claim, updateUser() permitiria forjar client_id cross-workspace.
     status: "pending"
 
 pre_production_gate:
