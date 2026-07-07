@@ -164,7 +164,7 @@ const baseAlert = {
   alert_type: 'low_balance',
   threshold_days: 7,
   projected_days: 3.4,
-  ad_accounts: { name: 'Conta Meta Cliente X' },
+  ad_accounts: { account_name: 'Conta Meta Cliente X' },
 }
 
 const waConnected = {

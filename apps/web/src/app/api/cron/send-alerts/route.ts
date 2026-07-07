@@ -26,7 +26,7 @@ export async function GET(req: NextRequest) {
     .from('alerts')
     .select(`
       id, workspace_id, ad_account_id, alert_type, threshold_days, projected_days,
-      ad_accounts!inner(name)
+      ad_accounts!inner(account_name)
     `)
     .is('resolved_at', null)
     .is('whatsapp_sent_at', null)
@@ -90,7 +90,7 @@ export async function GET(req: NextRequest) {
     const dataFormatada = projectedDate.toLocaleDateString('pt-BR')
 
     const text = [
-      `⚠️ Alerta de Saldo — ${adAccount.name}`,
+      `⚠️ Alerta de Saldo — ${adAccount.account_name}`,
       `Saldo projetado para esgotar em ${projectedDays} dias.`,
       `Limite configurado: ${alert.threshold_days} dias de veiculação.`,
       `Ação sugerida: recarregue o saldo da conta antes de ${dataFormatada}.`,

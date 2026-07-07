@@ -51,6 +51,8 @@ const isDashboard = pathname.startsWith('/dashboard') ||
 
 **⚠️ TRIGGER OBRIGATÓRIO:** Esta correção DEVE acontecer na primeira story que introduzir qualquer rota pública. Candidato direto: **Story 3.7 — Dashboard Compartilhável** (rota pública `/s/[token]`). O @dev responsável por 3.7 deve consultar este item antes de implementar.
 
+**Update 2026-07-07 (Wave 4, @dev):** Mitigado parcialmente via deny-list, não via a allow-list recomendada. Exclusões acumuladas em `proxy.ts`: `isPublicDashboard` (`/dashboard/`, Story 3.7), `isDashboardAuthApi` (`/api/dashboard/`, 3.7) e agora `isServiceRoute` (`/api/cron/`, `/api/sync/`, `/api/alerts/`, `/api/leads/process-queue`, Wave 4). O bug previsto aqui já causou 307 silencioso em **todos os crons do Epic 2 e da Story 2.9** (descoberto no QA gate da 3.6). A conversão para allow-list explícita continua pendente e recomendada — cada nova rota de serviço/pública ainda exige lembrar de adicionar exclusão. **@architect:** avaliar priorizar a allow-list antes do GA.
+
 ---
 
 ### TD-003 — RLS com `FOR ALL` sem separação de privilégios
@@ -75,6 +77,25 @@ CREATE POLICY workspace_update ON workspaces
 ```
 
 **Trigger para resolver:** Story de gestão de equipe / convite de membros (Epic ainda não mapeado).
+
+---
+
+### TD-004 — `/api/leads/submit` redirecionado para /login pelo middleware ⚠️ POSSÍVEL QUEBRA EM PROD
+
+| Campo | Valor |
+|-------|-------|
+| **Severidade** | HIGH (se o formulário público já estiver em uso) / MEDIUM (pré-produção) |
+| **Origem** | Story 3.6 — QA Gate Wave 4 (re-teste com curl, @dev) |
+| **Data** | 2026-07-07 |
+| **Arquivo** | `apps/web/src/proxy.ts` + `apps/web/src/app/api/leads/submit/route.ts` |
+
+**Descrição:** `/api/leads/submit` (Story 8.3) é endpoint **público** embutido em domínios de terceiros (CORS aberto), autenticado por `embed_token` no body + rate limit + gate de consentimento LGPD — **não** por sessão nem por `x-cron-secret`. O middleware `proxy.ts` (instância viva do TD-002) o redireciona para `/login` (307) quando não há cookie de sessão. Verificado via curl em 2026-07-07: `POST /api/leads/submit` → `307 → /login`. Consequência: um embed em site de cliente que POSTe para essa rota é redirecionado em vez de submeter o lead — **o formulário público não funciona**.
+
+**Por que NÃO foi corrigido junto com a Wave 4:** o modelo de auth é diferente dos crons (`embed_token`, não `x-cron-secret`). A exclusão da Wave 4 (`isServiceRoute`) deliberadamente deixou `/api/leads/submit` de fora para evitar destravar uma rota pública sem revalidar seu modelo de segurança completo (CORS, rate limit por IP+token, consentimento). @pm/orchestrator instruiu investigação separada.
+
+**Resolução sugerida:** Na Story 8.3 (ou story de correção dedicada), excluir `/api/leads/submit` do gate de sessão do `proxy.ts` (é público por design), e confirmar em QA que CORS, rate limit (`MAX_PER_IP_PER_HOUR`/`MAX_PER_TOKEN_PER_DAY`) e o gate de consentimento continuam íntegros com a rota acessível sem sessão. Idealmente resolver junto da conversão para allow-list do TD-002.
+
+**Trigger para resolver:** Antes de qualquer landing page de terceiro ir ao ar com formulário embutido. Dono: Story 8.3 (@dev responsável) + @architect (allow-list do TD-002).
 
 ---
 

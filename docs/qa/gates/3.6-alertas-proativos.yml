@@ -1,0 +1,128 @@
+schema: 1
+story: '3.6'
+slug: alertas-proativos
+title: Alertas Proativos de Saldo via WhatsApp
+gate: FAIL
+status_reason: >-
+  Teste manual (REST com service_role real) expôs 2 bloqueadores que tornam o cron
+  send-alerts não-funcional em produção, ambos mascarados pelos mocks unitários.
+  BLOCK-001: ad_accounts!inner(name)/adAccount.name usa coluna inexistente (é
+  account_name) → query 400 → cron 500 → nenhum alerta enviado. BLOCK-002: alerts
+  sem GRANT para service_role → 403 em SELECT+UPDATE → claim atômico e rollback não
+  executam. Desenho de dedup está correto e bem testado, mas não roda. Retorna para @dev.
+reviewer: 'Quinn'
+updated: '2026-07-07T13:35:00Z'
+
+acceptance_criteria:
+  - id: 'AC-3.6.1'
+    status: partial
+    note: >-
+      Guard 401 correto. Query de busca usa coluna inexistente `name` (BLOCK-001) e
+      depende de alerts sem grant (BLOCK-002) → rota retorna 500.
+  - id: 'AC-3.6.2'
+    status: blocked
+    note: >-
+      Claim UPDATE ... WHERE whatsapp_sent_at IS NULL RETURNING id correto no código;
+      não executável sem GRANT UPDATE em alerts (BLOCK-002).
+  - id: 'AC-3.6.3'
+    status: blocked
+    note: >-
+      Rollback whatsapp_sent_at = NULL correto no código; mesma dependência de GRANT
+      (BLOCK-002).
+  - id: 'AC-3.6.4'
+    status: met
+    note: "Worker suporta @g.us (fix 3.5 T1 verificado); validação /^\\d+@g\\.us$/ presente."
+  - id: 'AC-3.6.5'
+    status: met
+    note: >-
+      Alerta sem destino: workspace ausente no Map → skipped, sem claim, sem log de
+      erro. Teste PASS.
+  - id: 'AC-3.6.6'
+    status: met
+    note: 'AlertDestinationForm na seção WhatsApp; radio individual/grupo; validação client+server.'
+  - id: 'AC-3.6.7'
+    status: met
+    note: >-
+      saveAlertDestination valida formato pré-auth; UPDATE filtra id + workspace_id
+      (IDOR). Testes PASS.
+  - id: 'AC-3.6.8'
+    status: fail
+    note: >-
+      Formato da mensagem correto, mas adAccount.name é undefined (coluna é
+      account_name) → "Alerta de Saldo — undefined" se a query não quebrasse antes
+      (BLOCK-001).
+  - id: 'AC-3.6.9'
+    status: met
+    note: "vercel.json com /api/cron/send-alerts schedule '*/15 * * * *'."
+  - id: 'AC-3.6.10'
+    status: partial
+    note: >-
+      12 testes PASS, mas mock de ad_accounts usa `name` (coluna errada) — testes
+      verdes mascararam BLOCK-001. Cobertura de dedup boa; falta fidelidade de schema.
+
+evidence:
+  tests_run: 12
+  tests_passed: 12
+  test_command: 'pnpm --filter @advezo/web exec vitest run alert-destination'
+  manual_test: >-
+    REST direto com service_role real. alerts?select=...ad_accounts!inner(name)... →
+    400 (coluna name inexistente). alerts?select=id → 403 (sem grant). whatsapp_accounts
+    com colunas novas → 200 OK.
+  typecheck: 'PASS'
+  lint: 'PASS (0 errors no escopo)'
+  regression: 'suíte completa 321 passed; falha workspace-actions.test.ts pré-existente'
+  files_reviewed:
+    - apps/web/src/app/api/cron/send-alerts/route.ts
+    - apps/web/src/app/actions/alert-destination.ts
+    - apps/web/src/components/molecules/AlertDestinationForm.tsx
+    - apps/web/src/app/(dashboard)/clients/[id]/configuracoes/page.tsx
+    - apps/web/vercel.json
+    - apps/web/src/__tests__/alert-destination.test.ts
+    - supabase/migrations/20260101000016_alerts_whatsapp.sql
+
+quality_checks:
+  code_review: CONCERNS
+  unit_tests: CONCERNS
+  acceptance_criteria: FAIL
+  no_regressions: PASS
+  performance: PASS
+  security: PASS
+  documentation: PASS
+
+blocking_issues:
+  - id: 'BLOCK-001'
+    severity: high
+    category: code
+    finding: >-
+      send-alerts/route.ts L29 usa ad_accounts!inner(name) e L88 lê adAccount.name.
+      Coluna não existe — em ad_accounts (000004) o campo é account_name. REST retorna
+      400 "column ad_accounts_1.name does not exist". Primeira query do cron falha,
+      alertsError dispara, rota retorna 500, nenhum alerta é enviado. Teste passou
+      porque o mock devolvia { name: '...' }.
+    required_action: >-
+      Trocar ad_accounts!inner(name) → ad_accounts!inner(account_name) e adAccount.name
+      → adAccount.account_name na rota; ajustar mock do teste para { account_name }.
+  - id: 'BLOCK-002'
+    severity: high
+    category: security
+    finding: >-
+      Cron lê e faz claim (UPDATE) em alerts via service_role. alerts (000008) não
+      tem GRANT para service_role — REST 403 (permission denied). Sem SELECT+UPDATE,
+      leitura inicial, claim (AC 3.6.2) e rollback (AC 3.6.3) não funcionam. ad_accounts
+      (embed) tem o mesmo 403.
+    required_action: >-
+      Migration de grants (precedente 000011): GRANT SELECT, INSERT, UPDATE, DELETE
+      ON public.alerts TO service_role; GRANT SELECT ON public.ad_accounts TO
+      service_role (+ ad_campaigns, campaign_metrics para desbloquear a 3.5).
+
+positives:
+  - 'Estrutura de dedup (claim + rollback) sólida; edge case de crash pós-claim documentado e aceito.'
+  - 'Migration 000016 aplicada corretamente (Local=Remote); colunas verificadas no REST.'
+  - 'saveAlertDestination + UI corretos e testados (não afetados pelos bloqueadores).'
+
+return_to_dev:
+  - 'Corrigir BLOCK-001 (name → account_name na rota + mock).'
+  - 'Corrigir BLOCK-002 (migration de grants service_role em alerts/ad_accounts).'
+  - 'Re-teste manual do cron com curl autenticado obrigatório antes de reenviar ao gate.'
+
+waiver: { active: false }

@@ -97,6 +97,20 @@ export async function proxy(request: NextRequest) {
     return NextResponse.next()
   }
 
+  // Rotas de serviço acionadas por schedulers (Vercel Cron / Railway) que se
+  // autenticam pelo próprio segredo compartilhado (CRON_SECRET / x-cron-secret),
+  // nunca por sessão de usuário. Sem esta exclusão, o gate de login abaixo
+  // redirecionaria a chamada do scheduler para /login (307) antes do handler rodar.
+  // Story 3.5/3.6 (crons de relatório e alertas); Epic 2 (sync); Story 2.9 (alertas).
+  const isServiceRoute =
+    pathname.startsWith('/api/cron/') ||
+    pathname.startsWith('/api/sync/') ||
+    pathname.startsWith('/api/alerts/') ||
+    pathname === '/api/leads/process-queue'
+  if (isServiceRoute) {
+    return NextResponse.next()
+  }
+
   let response = NextResponse.next({ request })
 
   const supabase = createServerClient(

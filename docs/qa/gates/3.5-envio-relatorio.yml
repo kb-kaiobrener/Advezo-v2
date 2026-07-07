@@ -1,0 +1,132 @@
+schema: 1
+story: '3.5'
+slug: envio-relatorio
+title: Envio de Relatório via WhatsApp
+gate: CONCERNS
+status_reason: >-
+  9/9 ACs implementados e cobertos por testes (27/27 PASS). Código autoral correto:
+  dedup atômico via upsert ignoreDuplicates, fix de JID de grupo no worker verificado,
+  sendNow resolve colisão de período reaproveitando o log. Teste manual (REST com
+  service_role real) expôs GRANT-001: ad_accounts/campaign_metrics sem GRANT para
+  service_role fazem generateReport falhar em produção (degradação graciosa, log
+  failed). Lacuna herdada/compartilhada, não defeito da 3.5; requer migration de
+  grants (precedente 000011) antes do release funcional.
+reviewer: 'Quinn'
+updated: '2026-07-07T13:30:00Z'
+
+acceptance_criteria:
+  - id: 'AC-3.5.1'
+    status: met
+    note: >-
+      Guard 401 (Bearer CRON_SECRET); scheduleShouldFireNow filtra hora/dia UTC;
+      daily dispara em qualquer hora coincidente com send_time.
+  - id: 'AC-3.5.2'
+    status: met
+    note: >-
+      Dedup via upsert(onConflict:'schedule_id,period_start', ignoreDuplicates:true)
+      + maybeSingle(); conflito → null → skip. UNIQUE em migration 000015. Teste PASS.
+  - id: 'AC-3.5.3'
+    status: met
+    note: >-
+      Worker index.ts: const jid = to.includes('@') ? to : `${to}@s.whatsapp.net`.
+      JID de grupo @g.us preservado; E.164 recebe sufixo. Verificado no código.
+  - id: 'AC-3.5.4'
+    status: met
+    note: >-
+      INSERT pending → UPDATE sent/failed; try/catch + .catch(()=>null) no fetch;
+      resposta 200 mesmo com falhas parciais.
+  - id: 'AC-3.5.5'
+    status: met
+    note: >-
+      resendReport filtra id + workspace_id (IDOR); UPDATE no log existente sem
+      dedup. Testes IDOR + success + fail PASS.
+  - id: 'AC-3.5.6'
+    status: met
+    note: >-
+      ReportSendHistory — badges por status, período DD/MM/YYYY, "Reenviar" só em
+      failed, "Enviar Agora" só com schedule ativo.
+  - id: 'AC-3.5.7'
+    status: met
+    note: >-
+      sendNow período 30d; upsert sem ignoreDuplicates reaproveita log em colisão —
+      envio manual sempre ocorre. Teste diffDays===30 PASS.
+  - id: 'AC-3.5.8'
+    status: met
+    note: "apps/web/vercel.json com cron /api/cron/send-reports schedule '0 * * * *'."
+  - id: 'AC-3.5.9'
+    status: met
+    note: >-
+      27 testes: scheduleShouldFireNow (todas frequências), computePeriod, cron
+      (401/dedup/sent/fail/sem-conta), resendReport, sendNow.
+
+evidence:
+  tests_run: 27
+  tests_passed: 27
+  test_command: 'pnpm --filter @advezo/web exec vitest run report-send'
+  manual_test: >-
+    REST direto com service_role real. Queries autorais da 3.5 (report_schedules,
+    whatsapp_accounts, report_logs) → 200 OK. Dependência de generateReport
+    (ad_accounts, campaign_metrics) → 403 (ver GRANT-001).
+  typecheck: 'PASS (web + worker)'
+  lint: 'PASS (0 errors no escopo)'
+  regression: 'suíte completa 321 passed; falha workspace-actions.test.ts pré-existente, fora do escopo'
+  files_reviewed:
+    - apps/web/src/app/api/cron/send-reports/route.ts
+    - apps/web/src/app/actions/report-send.ts
+    - apps/web/src/lib/reports/schedule-utils.ts
+    - apps/web/src/components/molecules/ReportSendHistory.tsx
+    - apps/web/src/app/(dashboard)/clients/[id]/configuracoes/page.tsx
+    - apps/whatsapp-worker/src/index.ts
+    - apps/web/vercel.json
+    - apps/web/src/__tests__/report-send.test.ts
+    - supabase/migrations/20260101000015_report_logs.sql
+
+quality_checks:
+  code_review: PASS
+  unit_tests: PASS
+  acceptance_criteria: PASS
+  no_regressions: PASS
+  performance: PASS
+  security: PASS
+  documentation: PASS
+
+security_notes:
+  - >-
+    resendReport e sendNow filtram por workspace_id (proteção IDOR cross-workspace).
+    Confirmado por teste.
+  - >-
+    Cron protegido por Bearer CRON_SECRET; 401 sem header ou secret inválido.
+    Teste PASS.
+  - >-
+    CRON_SECRET e WHATSAPP_WORKER_URL server-only (nunca NEXT_PUBLIC_).
+
+top_issues:
+  - id: 'GRANT-001'
+    severity: medium
+    finding: >-
+      Cron send-reports chama generateReport, que lê ad_accounts e campaign_metrics.
+      Ambas retornam 403 para service_role (permission denied) — sem GRANT explícito
+      nas migrations 000004/000006. Em produção, schedule real dispara, generateReport
+      lança, try/catch marca log como failed (degradação graciosa), mas nenhum
+      relatório é enviado. Lacuna herdada (afeta também generateReport da 3.4);
+      precedente de fix: migration 000011 (whatsapp_accounts_grants).
+    suggested_action: >-
+      Migration de grants antes do release: GRANT SELECT ON ad_accounts,
+      ad_campaigns, campaign_metrics TO service_role (e alerts, ver Story 3.6).
+      Não é defeito do código da 3.5 — tabelas próprias (report_logs,
+      report_schedules, whatsapp_accounts) já têm grant.
+  - id: 'REL-003'
+    severity: low
+    finding: >-
+      computePeriod daily usa period_start = period_end = hoje (janela de 1 dia).
+      Confirmar com produto se relatório diário deve cobrir 24h anteriores vs. dia
+      corrente parcial.
+    suggested_action: 'Sem impacto técnico; alinhar com produto se necessário.'
+
+required_before_production:
+  - >-
+    Migration de grants para service_role em ad_accounts, ad_campaigns,
+    campaign_metrics (compartilhada com a correção da Story 3.6). Sem ela o cron
+    registra envios como failed em vez de enviar.
+
+waiver: { active: false }
