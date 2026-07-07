@@ -570,35 +570,6 @@ O @architect deve favorecer decisões que não bloqueiem velocidade de entrega n
 
 ---
 
-#### Story 3.5 — Envio de Relatório via WhatsApp
-
-> Como gestor de tráfego, quero que o relatório gerado seja enviado automaticamente via WhatsApp ao destinatário configurado, com suporte a número individual e grupo.
-
-**Acceptance Criteria:**
-1. Consome o texto gerado pela Story 3.4 e a conexão WhatsApp da Story 3.2
-2. **Suporte explícito a grupo de WhatsApp como destinatário**, além de número individual (FR-B1) — critério testado com envio real para grupo
-3. Envio executado via Baileys usando a conexão ativa da conta
-4. Registro de envio em `report_logs` (`schedule_id`, `sent_at`, `status`, `destination_type`, `error_message`)
-5. Reenvio manual disponível na UI para qualquer relatório do histórico
-6. Falhas de envio visíveis na UI com mensagem de erro clara (NFR-4)
-7. Sem envio duplicado: relatório já enviado no período não é reenviado pelo cron
-
----
-
-#### Story 3.6 — Alertas Proativos de Saldo via WhatsApp
-
-> Como gestor de tráfego, quero receber alerta via WhatsApp quando o saldo de uma conta estiver projetado para esgotar em menos de N dias, para agir antes da campanha ser pausada.
-
-**Acceptance Criteria:**
-1. Consome alertas gerados pela Story 2.9 (tabela `alerts` com status pending)
-2. Destinatário configurável por conta (gestor ou cliente — independente do destinatário de relatório)
-3. Mensagem inclui: nome da conta, saldo atual, projeção de dias restantes e sugestão de ação
-4. Alerta marcado como `sent` após envio; `failed` com erro registrado se falhar
-5. Sem envio duplicado: alerta já enviado não é reenviado no próximo ciclo do cron
-6. Suporte a grupo de WhatsApp como destinatário (consistente com Story 3.5)
-
----
-
 #### Story 3.7 — Dashboard Compartilhável com Branding da Agência
 
 > Como gestor de tráfego, quero gerar um link público de dashboard para cada cliente com meu logo e as métricas que eu selecionar, para substituir o envio de planilha ou print.

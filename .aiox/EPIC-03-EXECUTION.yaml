@@ -121,7 +121,12 @@ execution_plan:
       3.3 (Config relatórios): CRUD de report_schedules — padrão estabelecido.
       3.7 (Dashboard compartilhável): rota pública /dashboard/[token] com JWT de escopo
       restrito (NFR-2 — sem service key exposta). Atenção ao AC 3.7.8 (< 2s Lighthouse em 4G).
-    status: "pending"
+    status: "done"
+    completed_code_at: "2026-07-06"
+    qa_result: >
+      3.3: PASS. 15/15 testes. 6/6 ACs. Validação server-side pré-auth confirmada.
+      3.7: PASS. 11/11 testes. 7/7 ACs. Middleware gate (ISR + Edge WebCrypto HMAC).
+      AC 3.7.8 pendente Lighthouse em produção Vercel.
 
   wave_4:
     stories: ["3.5", "3.6"]
@@ -182,4 +187,4 @@ security_constraints:
   - "client_id RLS enforced — painel cliente (3.8) nunca acessa outro workspace/client"
   - "cb_paused_at: circuit breaker protege o número WA de banimento por spam de reconexão"
 
-current_wave: 3
+current_wave: 4
