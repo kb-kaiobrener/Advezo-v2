@@ -5,7 +5,9 @@ import { ConnectNewWhatsApp } from '@/components/molecules/ConnectNewWhatsApp'
 import { ReportScheduleForm } from '@/components/molecules/ReportScheduleForm'
 import { ReportSendHistory } from '@/components/molecules/ReportSendHistory'
 import { AlertDestinationForm } from '@/components/molecules/AlertDestinationForm'
+import { ClientAccessForm } from '@/components/molecules/ClientAccessForm'
 import type { AlertDestinationType } from '@/app/actions/alert-destination'
+import type { ClientUser } from '@/app/actions/client-users'
 import { DashboardConfigForm, type DashboardConfig } from '@/components/molecules/DashboardConfigForm'
 import type { ReportSchedule } from '@/app/actions/report-schedules'
 import type { ReportLog } from '@/app/actions/report-send'
@@ -27,7 +29,7 @@ async function getPageData(clientId: string) {
 
   if (!membership) return null
 
-  const [{ data: client }, { data: connections }, { data: schedule }, { data: dashboardConfig }, { data: reportLogs }, { data: waAccount }] = await Promise.all([
+  const [{ data: client }, { data: connections }, { data: schedule }, { data: dashboardConfig }, { data: reportLogs }, { data: waAccount }, { data: clientUsers }] = await Promise.all([
     serviceClient
       .from('clients')
       .select('*')
@@ -67,6 +69,12 @@ async function getPageData(clientId: string) {
       .order('created_at', { ascending: true })
       .limit(1)
       .maybeSingle(),
+    serviceClient
+      .from('client_users')
+      .select('*')
+      .eq('client_id', clientId)
+      .eq('workspace_id', membership.workspace_id)
+      .order('invited_at', { ascending: true }),
   ])
 
   if (!client) return null
@@ -83,6 +91,7 @@ async function getPageData(clientId: string) {
       alert_destination_type: AlertDestinationType | null
       alert_destination_id: string | null
     } | null) ?? null,
+    clientUsers: (clientUsers as ClientUser[] | null) ?? [],
   }
 }
 
@@ -95,7 +104,7 @@ export default async function ClientConfiguracoesPage({
   const data = await getPageData(id)
   if (!data) notFound()
 
-  const { client, workspaceId, connections, schedule, dashboardConfig, reportLogs, waAccount } = data
+  const { client, workspaceId, connections, schedule, dashboardConfig, reportLogs, waAccount, clientUsers } = data
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-8 space-y-8">
@@ -146,6 +155,12 @@ export default async function ClientConfiguracoesPage({
         <h2 className="text-base font-semibold text-foreground">Dashboard Compartilhável</h2>
 
         <DashboardConfigForm clientId={id} config={dashboardConfig} />
+      </section>
+
+      <section className="space-y-4">
+        <h2 className="text-base font-semibold text-foreground">Acesso do Cliente</h2>
+
+        <ClientAccessForm clientId={id} existingUsers={clientUsers} />
       </section>
     </div>
   )
