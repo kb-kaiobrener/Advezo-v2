@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { formatMetricValue, type MetricTotals } from '@/lib/dashboard/metrics'
 import type { ClienteAccountMetrics } from '@/app/api/cliente/metrics/route'
 
@@ -23,25 +23,36 @@ export function ClientePanel({ clientId }: Props) {
   const [accounts, setAccounts] = useState<ClienteAccountMetrics[] | null>(null)
   const [error, setError] = useState<string | null>(null)
 
-  const load = useCallback(async () => {
-    setError(null)
-    setAccounts(null)
-    try {
-      const res = await fetch(`/api/cliente/metrics?client_id=${clientId}&period=${period}`)
-      if (!res.ok) {
-        setError('Não foi possível carregar as métricas.')
-        return
+  // Reset de estado acontece no handler do clique (handlePeriodChange) — nunca
+  // sincronamente dentro do effect (regra react-hooks de cascading renders).
+  // No effect, todo setState ocorre após await (assíncrono).
+  useEffect(() => {
+    let cancelled = false
+    async function run() {
+      try {
+        const res = await fetch(`/api/cliente/metrics?client_id=${clientId}&period=${period}`)
+        if (cancelled) return
+        if (!res.ok) {
+          setError('Não foi possível carregar as métricas.')
+          return
+        }
+        const body = (await res.json()) as { accounts: ClienteAccountMetrics[] }
+        if (!cancelled) setAccounts(body.accounts)
+      } catch {
+        if (!cancelled) setError('Não foi possível carregar as métricas.')
       }
-      const body = (await res.json()) as { accounts: ClienteAccountMetrics[] }
-      setAccounts(body.accounts)
-    } catch {
-      setError('Não foi possível carregar as métricas.')
+    }
+    run()
+    return () => {
+      cancelled = true
     }
   }, [clientId, period])
 
-  useEffect(() => {
-    load()
-  }, [load])
+  function handlePeriodChange(p: (typeof PERIODS)[number]) {
+    setPeriod(p)
+    setAccounts(null)
+    setError(null)
+  }
 
   return (
     <div className="space-y-4">
@@ -50,7 +61,7 @@ export function ClientePanel({ clientId }: Props) {
           <button
             key={p}
             type="button"
-            onClick={() => setPeriod(p)}
+            onClick={() => handlePeriodChange(p)}
             className={
               p === period
                 ? 'rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground'
