@@ -319,7 +319,10 @@ app.post('/send', async (req: Request, res: Response) => {
   }
 
   try {
-    await sock.sendMessage(`${to}@s.whatsapp.net`, { text })
+    // Grupos chegam como JID completo (ex: 120363XXXX@g.us) — preservar.
+    // Números individuais chegam como E.164 puro — anexar @s.whatsapp.net.
+    const jid = to.includes('@') ? to : `${to}@s.whatsapp.net`
+    await sock.sendMessage(jid, { text })
     res.status(200).json({ ok: true })
   } catch (err) {
     logger.error({ err, account_id, to }, 'falha ao enviar mensagem')
