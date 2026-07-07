@@ -106,9 +106,13 @@ CREATE POLICY client_read ON public.ad_campaigns
     SELECT id FROM public.ad_accounts WHERE client_id = auth_client_id()
   ));
 
+-- campaign_metrics NÃO tem ad_account_id — o caminho é campaign_id →
+-- ad_campaigns.ad_account_id → ad_accounts.client_id (schema de 000006).
 CREATE POLICY client_read ON public.campaign_metrics
-  FOR SELECT USING (ad_account_id IN (
-    SELECT id FROM public.ad_accounts WHERE client_id = auth_client_id()
+  FOR SELECT USING (campaign_id IN (
+    SELECT c.id FROM public.ad_campaigns c
+    JOIN public.ad_accounts a ON a.id = c.ad_account_id
+    WHERE a.client_id = auth_client_id()
   ));
 
 -- ── 5. Grants de leitura para authenticated (RLS restringe as linhas) ─

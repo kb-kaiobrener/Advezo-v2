@@ -14,6 +14,12 @@ import { NextResponse, type NextRequest } from 'next/server'
  *   - com senha + cookie válido → next();
  *   - com senha sem cookie válido → redirect /dashboard/:token/senha.
  */
+/** Sessão do cliente final expira em 7 dias (Story 3.8, AC 3.8.6) — helper puro para teste. */
+export function isClienteSessionExpired(lastSignInAt: string | null | undefined, now: Date = new Date()): boolean {
+  const lastSignIn = lastSignInAt ? new Date(lastSignInAt).getTime() : 0
+  return now.getTime() - lastSignIn > 7 * 24 * 60 * 60 * 1000
+}
+
 async function handleDashboardPasswordGate(request: NextRequest): Promise<NextResponse> {
   const { pathname } = request.nextUrl
   const token = pathname.split('/')[2] // /dashboard/[token]
@@ -132,6 +138,47 @@ export async function proxy(request: NextRequest) {
 
   // Refresh session — required by @supabase/ssr on every request
   const { data: { user } } = await supabase.auth.getUser()
+
+  // ── Área do cliente final (/cliente) — Story 3.8 ─────────────────────────
+  // Posição: imediatamente após getUser(), ANTES de isAuthRoute/isDashboard.
+  // O claim client_id só é confiável por causa do strip no custom_access_token_hook
+  // (AC 3.8.3); aqui ele é usado apenas para ROTEAMENTO — a autorização de dados
+  // vem do Route Handler (guard 403) + RLS client_read.
+  const clienteClaim = user?.user_metadata?.client_id as string | undefined
+  const isClienteArea = pathname.startsWith('/cliente')
+
+  if (isClienteArea) {
+    const isClientePublic =
+      pathname.startsWith('/cliente/login') || pathname.startsWith('/cliente/definir-senha')
+
+    if (isClientePublic) return response
+    if (!user) return NextResponse.redirect(new URL('/cliente/login', request.url))
+    if (!clienteClaim) return NextResponse.redirect(new URL('/dashboard', request.url)) // gestor não pertence aqui
+
+    // AC 3.8.6 — expiração de 7 dias (last_sign_in_at só muda em login real)
+    if (isClienteSessionExpired(user.last_sign_in_at)) {
+      await supabase.auth.signOut()
+      return NextResponse.redirect(new URL('/cliente/login', request.url))
+    }
+    return response
+  }
+
+  // API do painel do cliente — o handler faz a própria auth (401/403, AC 3.8.2).
+  // Precisa vir ANTES do redirect do clienteClaim abaixo, senão o fetch do
+  // painel seria redirecionado para /cliente (HTML) em vez de alcançar o JSON.
+  // `response` (não next()) preserva os cookies de sessão renovados pelo getUser().
+  const isClienteApi = pathname.startsWith('/api/cliente/')
+  if (isClienteApi) {
+    return response
+  }
+
+  // Cliente autenticado fora da área dele → /cliente. Precisa vir ANTES de
+  // isDashboard && !user: o cliente TEM `user`, então aquele guard não o barra —
+  // sem este bloco, um cliente logado navegaria pelas páginas do gestor (AC 3.8.5).
+  // Cobre também /login e / (cliente logado → sempre /cliente).
+  if (clienteClaim) {
+    return NextResponse.redirect(new URL('/cliente', request.url))
+  }
 
   const isAuthRoute = pathname.startsWith('/login') || pathname.startsWith('/register') || pathname.startsWith('/auth/')
   const isOnboarding = pathname === '/onboarding'
