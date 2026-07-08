@@ -1,0 +1,122 @@
+schema: 1
+item: 'TD-005'
+slug: hotfix-workspace-claim-getclaims
+title: 'Hotfix TD-005 — workspace_id via getClaims + grants'
+gate: PASS
+status_reason: >-
+  Iteração 2 aprovada. getClaims (5 pontos) corrigiu a fonte do claim; migration
+  000020 concedeu INSERT/UPDATE/DELETE (+SELECT lead_forms/leads) ao role correto
+  (authenticated), fechando BLOCK-004 e BLOCK-005. Verificado independentemente
+  com sessão real de gestor (role authenticated de verdade, não service_role):
+  INSERT ad_accounts do próprio workspace → 201; RLS barra INSERT cross-workspace
+  → 403 (WITH CHECK herdado do USING); /api/lead-forms ponta a ponta → 201 com
+  workspace_id = claim do JWT. Grant só para authenticated (sem anon). TD-006
+  (clients/workspace_members) fora de escopo, permanece aberto.
+reviewer: 'Quinn'
+updated: '2026-07-08T02:55:00Z'
+
+resolution_iteracao_2:
+  gate: PASS
+  date: '2026-07-08T02:55:00Z'
+  migration: '20260101000020_authenticated_write_grants.sql (000019 intocada)'
+  verificacao_sessao_real:
+    ad_accounts_insert_proprio: '201 ✅'
+    ad_accounts_insert_alheio: '403 (RLS WITH CHECK) ✅'
+    ad_accounts_update_delete_proprio: '200 ✅'
+    lead_forms_post_e2e: '201 via dev server, workspace_id = claim do gestor ✅'
+    lead_forms_sem_sessao: '307 → /login (bloqueado) ✅'
+    grant_scope: 'apenas authenticated (2 ocorrências de anon são comentário) ✅'
+  suite: '335 passed (baseline; falha única pré-existente workspace-actions)'
+  cleanup: 'usuário/workspace/clients/lead_forms/ad_accounts de teste removidos (todos */0)'
+  fora_de_escopo:
+    - 'TD-006: authenticated 403 em clients/workspace_members (clients.ts session client) — aberto, não bloqueia esta correção.'
+    - 'OAuth Meta/Google token real: consent no browser (staging manual) — a operação de escrita (INSERT ad_accounts via authenticated) está provada.'
+
+verified_correct:
+  - id: 'getClaims-5-pontos'
+    note: >-
+      Fonte do claim trocada para getClaims() (JWT/JWKS) nos 5 arquivos. Verificado
+      com sessão real de gestor: JWT workspace_id = membership; /onboarding →
+      /dashboard (proxy hasWorkspace agora lê o claim); guards de workspace passam
+      (lead-forms não retorna mais 403 "workspace não encontrado", avança à camada DB).
+  - id: 'varredura-consumidores'
+    note: >-
+      Varredura independente: nenhum consumidor de claim customizado (workspace_id/
+      client_id) ficou lendo getUser().user_metadata. Sidebar (full_name/name) usa
+      metadata padrão (não do hook) — correto. definir-senha usa getSession() só
+      para checar sessão. 5 pontos são o conjunto completo.
+  - id: 'migration-000019-rls'
+    note: >-
+      As 4 tabelas (lead_forms/leads/action_log/sync_errors) têm RLS +
+      workspace_isolation; grant só para service_role (sem authenticated/anon) —
+      não superexpõe. Porém é o role ERRADO para os handlers de sessão (ver blocker).
+
+blocking_issues:
+  - id: 'BLOCK-004'
+    severity: high
+    category: security
+    finding: >-
+      OAuth Meta/Google callbacks fazem upsert em ad_accounts via client de sessão
+      (createSupabaseServerClient = role authenticated). authenticated tem SELECT em
+      ad_accounts (000018) mas NÃO tem INSERT/UPDATE (nunca concedido). Teste com
+      sessão real: authenticated INSERT ad_accounts → 403 permission denied. Com o
+      guard corrigido, o upsert agora é alcançado e falha → catch → ?error=oauth_failed.
+      ad_accounts NÃO recebe linha pelo caminho real. A prova anterior usou
+      service_role (que tem grant), não o role do handler.
+    required_action: >-
+      GRANT INSERT, UPDATE, DELETE ON ad_accounts (e ad_campaigns, campaign_metrics)
+      TO authenticated — OU refatorar os callbacks para usar service client. Migração
+      + re-teste com sessão real produzindo linha em ad_accounts.
+  - id: 'BLOCK-005'
+    severity: high
+    category: security
+    finding: >-
+      lead-forms POST insere em lead_forms via client de sessão (authenticated).
+      000019 concedeu lead_forms a service_role — role errado. Teste com sessão real:
+      POST /api/lead-forms com gestor → 500 "permission denied for table lead_forms".
+      O objetivo declarado do GRANT-002 (destravar lead-forms) NÃO foi atingido.
+    required_action: >-
+      GRANT ... ON lead_forms, leads TO authenticated (OU refatorar handler para
+      service client). Alinhar a decisão role/handler com o padrão do projeto.
+
+related_finding:
+  - id: 'TD-006 (novo)'
+    severity: medium
+    finding: >-
+      Gap sistêmico de grant para authenticated em tabelas do Epic 1/2 consumidas
+      por session client: workspace_members, clients, leads, lead_forms (403).
+      workspace.ts (onboarding) contorna usando service client; clients.ts usa
+      session client → createClient/CRUD de clientes provavelmente quebrado via app
+      (getAuthenticatedWorkspace lê workspace_members = 403 → redirect /onboarding).
+      Registrar TD-006 e mapear todos os handlers session-client vs service-client.
+
+evidence:
+  method: 'REST com token real de gestor (role authenticated) — fiel ao createSupabaseServerClient (anon+cookie)'
+  authenticated_grants_matrix:
+    ad_accounts: 'SELECT 200 / INSERT 403'
+    lead_forms: '403'
+    clients: '403'
+    workspace_members: '403'
+    leads: '403'
+    report_schedules: '200 (grant explícito 000013)'
+    whatsapp_accounts: '200 (grant explícito 000011)'
+  proxy_hasWorkspace: '/onboarding → /dashboard (getClaims OK)'
+  oauth_guard: 'passa o guard de workspace; falha no upsert ad_accounts (403 authenticated)'
+  suite: '335 passed (baseline; falha única pré-existente workspace-actions)'
+  cleanup: 'Usuário/workspace/linhas de teste QA removidos (clients: 0, ad_accounts: 0)'
+
+quality_checks:
+  code_review: CONCERNS
+  unit_tests: PASS
+  acceptance_criteria: FAIL
+  no_regressions: PASS
+  security: CONCERNS
+  documentation: PASS
+
+return_to_dev:
+  - 'BLOCK-004: authenticated INSERT/UPDATE/DELETE em ad_accounts/ad_campaigns/campaign_metrics (ou service client nos callbacks).'
+  - 'BLOCK-005: authenticated grant em lead_forms/leads (ou service client no handler).'
+  - 'Re-teste com SESSÃO REAL (role authenticated), não service_role no REST — provar linha em ad_accounts pelo caminho do handler.'
+  - 'Registrar TD-006 (gap authenticated em clients/workspace_members — Story 1.5).'
+
+waiver: { active: false }

@@ -106,7 +106,14 @@ export async function GET(request: Request): Promise<NextResponse> {
     const {
       data: { user },
     } = await supabase.auth.getUser()
-    const workspaceId = user?.user_metadata?.workspace_id as string | undefined
+    if (!user) {
+      return integrationsRedirect(request, '?error=google_oauth_failed')
+    }
+
+    // Fix TD-005: claim do JWT verificado (getClaims/JWKS) — o hook só escreve
+    // no token; getUser().user_metadata reflete o banco, que nunca recebe o claim.
+    const { data: claimsData } = await supabase.auth.getClaims()
+    const workspaceId = claimsData?.claims?.user_metadata?.workspace_id as string | undefined
     if (!workspaceId) {
       return integrationsRedirect(request, '?error=google_oauth_failed')
     }

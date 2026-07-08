@@ -55,7 +55,10 @@ export async function POST(request: Request): Promise<NextResponse> {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const workspaceId = user.user_metadata?.workspace_id as string | undefined
+  // Fix TD-005: claim do JWT verificado (getClaims/JWKS) — o hook só escreve
+  // no token; getUser().user_metadata reflete o banco, que nunca recebe o claim.
+  const { data: claimsData } = await supabase.auth.getClaims()
+  const workspaceId = claimsData?.claims?.user_metadata?.workspace_id as string | undefined
   if (!workspaceId) {
     return NextResponse.json(
       { error: 'Workspace não encontrado no token' },

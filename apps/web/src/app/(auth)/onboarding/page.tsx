@@ -29,9 +29,13 @@ export default function OnboardingPage() {
         process.env.NEXT_PUBLIC_SUPABASE_URL!,
         process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
       )
-      const { data, error } = await supabase.auth.refreshSession()
+      // refreshSession força novo access token — o hook injeta workspace_id no JWT.
+      // Fix TD-005: o claim vive no TOKEN (getClaims), não em session.user.user_metadata
+      // (que reflete o banco e nunca recebe o claim).
+      const { error } = await supabase.auth.refreshSession()
+      const { data: claimsData } = await supabase.auth.getClaims()
       console.log('refresh result:', {
-        workspaceId: data?.session?.user?.user_metadata?.workspace_id,
+        workspaceId: claimsData?.claims?.user_metadata?.workspace_id,
         error: error?.message
       })
       await new Promise(resolve => setTimeout(resolve, 1000))

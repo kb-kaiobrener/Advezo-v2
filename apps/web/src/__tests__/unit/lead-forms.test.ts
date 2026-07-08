@@ -16,8 +16,13 @@ import type { LeadFormField } from '@advezo/types'
  * embed_token é gerado de verdade (randomBytes), validando a presença/formato real.
  */
 
+// Fix TD-005: getUser só confirma sessão (user_metadata vazio = realidade do banco);
+// o workspace_id vem de getClaims() (JWT injetado pelo hook).
 const AUTHED_USER = {
-  data: { user: { id: 'user-1', user_metadata: { workspace_id: 'ws-1' } } },
+  data: { user: { id: 'user-1', user_metadata: {} } },
+}
+const AUTHED_CLAIMS = {
+  data: { claims: { user_metadata: { workspace_id: 'ws-1' } } },
 }
 
 interface InsertCapture {
@@ -36,7 +41,7 @@ function mockServerClientForInsert(
   }
 ) {
   return {
-    auth: { getUser: async () => AUTHED_USER },
+    auth: { getUser: async () => AUTHED_USER, getClaims: async () => AUTHED_CLAIMS },
     from: () => ({
       insert: (payload: Record<string, unknown>) => {
         capture.payload = payload
@@ -124,7 +129,7 @@ describe('POST /api/lead-forms (Story 8.2)', () => {
   it('2. campo email SEM consent_checkbox → 422 com mensagem LGPD', async () => {
     vi.doMock('@advezo/database', () => ({
       createSupabaseServerClient: vi.fn(async () => ({
-        auth: { getUser: async () => AUTHED_USER },
+        auth: { getUser: async () => AUTHED_USER, getClaims: async () => AUTHED_CLAIMS },
         from: () => ({
           insert: () => ({ select: () => ({ single: async () => ({ data: null, error: null }) }) }),
         }),
@@ -196,7 +201,7 @@ describe('GET /api/lead-forms/:id/embed (Story 8.2 — AC 8.2.4)', () => {
     const token = 'abc123token_base64url'
     vi.doMock('@advezo/database', () => ({
       createSupabaseServerClient: vi.fn(async () => ({
-        auth: { getUser: async () => AUTHED_USER },
+        auth: { getUser: async () => AUTHED_USER, getClaims: async () => AUTHED_CLAIMS },
         from: () => ({
           select: () => ({
             eq: () => ({
@@ -241,7 +246,7 @@ describe('DELETE /api/lead-forms/:id (Story 8.2 — soft delete)', () => {
 
     vi.doMock('@advezo/database', () => ({
       createSupabaseServerClient: vi.fn(async () => ({
-        auth: { getUser: async () => AUTHED_USER },
+        auth: { getUser: async () => AUTHED_USER, getClaims: async () => AUTHED_CLAIMS },
         from: () => ({
           update: (payload: Record<string, unknown>) => {
             updatePayloads.push(payload)

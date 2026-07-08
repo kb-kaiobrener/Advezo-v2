@@ -34,8 +34,10 @@ const upsertSpy = vi.fn(async () => ({ error: null }))
 vi.mock('@advezo/database', () => ({
   createSupabaseServerClient: vi.fn(async () => ({
     auth: {
-      getUser: async () => ({
-        data: { user: { user_metadata: { workspace_id: 'ws-123' } } },
+      // getUser: só checagem de sessão. Fix TD-005: workspace_id via getClaims() (JWT).
+      getUser: async () => ({ data: { user: { id: 'user-1', user_metadata: {} } } }),
+      getClaims: async () => ({
+        data: { claims: { user_metadata: { workspace_id: 'ws-123' } } },
       }),
     },
     from: () => ({ upsert: upsertSpy }),

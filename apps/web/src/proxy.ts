@@ -188,7 +188,9 @@ export async function proxy(request: NextRequest) {
   const isOnboarding = pathname === '/onboarding'
   const isDashboard = !isAuthRoute && !isOnboarding && !isPublicDashboard && pathname !== '/'
 
-  const hasWorkspace = !!user?.user_metadata?.workspace_id
+  // Fix TD-005: workspace_id vem do claim do JWT (getClaims já chamado acima) —
+  // getUser().user_metadata nunca recebe o claim do hook (era sempre false aqui).
+  const hasWorkspace = !!claimsData?.claims?.user_metadata?.workspace_id
 
   // Unauthenticated access to protected routes → /login
   if (isDashboard && !user) {
