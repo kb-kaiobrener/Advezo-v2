@@ -1,0 +1,47 @@
+epic_id: "04"
+epic_name: "Rastreamento Fase 1: Origem"
+epic_path: "docs/stories/epics/epic-04-rastreamento-origem"
+prd_section: "docs/prd.md § Epic 4 (linha ~589)"
+authorized_by: "usuário (modo semi-autônomo @dev)"
+authorized_at: "2026-07-08"
+
+goal: >
+  Rastrear a origem de cada conversa de WhatsApp — do clique no anúncio (Meta/Google/custom)
+  ao registro automático da conversa como tracked na primeira mensagem.
+
+execution_mode: >
+  SEMI-AUTÔNOMO (@dev): sem paradas para UI, leitura de dado existente ou lógica pura.
+  Paradas obrigatórias com evidência de sessão real: (1) migrations antes do db push;
+  (2) rotas públicas novas sem sessão (/t/[code]); (3) escrita de dado de cliente real
+  ou envio de mensagem de verdade. Resumo consolidado por wave.
+
+execution_plan:
+  wave_1:
+    stories: ["4.1"]
+    description: "Schema de rastreamento (tracking_links, tracked_clicks, tracked_conversations)"
+    stop_gate: "exceção 1 — migration antes do push"
+    status: "in_progress"
+  wave_2:
+    stories: ["4.2", "4.3"]
+    description: "Gerador/gestão de links + redirect público /t/[code] com log de cliques"
+    stop_gate: "exceção 2 — rota pública /t/[code] antes de considerar aplicada"
+    depends_on: ["wave_1"]
+    status: "pending"
+  wave_3:
+    stories: ["4.4"]
+    description: "Captura de origem na 1ª mensagem (worker Baileys) + aviso ao titular"
+    stop_gate: "exceção 3 — envio real de mensagem de aviso"
+    depends_on: ["wave_2"]
+    status: "pending"
+  wave_4:
+    stories: ["4.5"]
+    description: "Dashboard de origem de conversas"
+    stop_gate: "nenhum (UI + leitura)"
+    depends_on: ["wave_3"]
+    status: "pending"
+
+security_constraints:
+  - "LGPD: phone_number_hash/ip_hash = HMAC-SHA256 com salt workspace_id + GLOBAL_HMAC_SECRET — pseudonimização, nunca chamar de anônimo"
+  - "Grants: service_role E authenticated onde session client consome (lição TD-005/TD-006)"
+  - "/t/[code] é público — usa service role server-side, nunca expõe chave; excluir do gate de login no proxy"
+  - "Aviso ao titular (NFR-8) obrigatório ao marcar tracked — template da Story 3.2"
