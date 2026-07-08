@@ -22,7 +22,11 @@ const mockCreateServiceClient = vi.mocked(createSupabaseServiceClient)
 const CLIENT_A = 'aaaaaaaa-0000-0000-0000-000000000001'
 const CLIENT_B = 'bbbbbbbb-0000-0000-0000-000000000002'
 
-/** Sessão de um usuário-cliente com claim client_id no JWT. */
+/**
+ * Sessão de um usuário-cliente. Fix BLOCK-003: o claim vem de getClaims()
+ * (JWT verificado) — o user_metadata de getUser() fica VAZIO de propósito,
+ * espelhando a realidade (hook só escreve no token, não no banco).
+ */
 function makeClienteSession(clientId: string | null, extra: Record<string, unknown> = {}) {
   return {
     auth: {
@@ -30,10 +34,13 @@ function makeClienteSession(clientId: string | null, extra: Record<string, unkno
         data: {
           user: {
             id: 'user-cliente-1',
-            user_metadata: clientId ? { client_id: clientId } : {},
+            user_metadata: {}, // banco NÃO tem o claim — fonte correta é o JWT
             ...extra,
           },
         },
+      }),
+      getClaims: vi.fn().mockResolvedValue({
+        data: clientId ? { claims: { user_metadata: { client_id: clientId } } } : { claims: { user_metadata: {} } },
       }),
     },
     from: vi.fn(), // guard 403 deve barrar ANTES de qualquer query
@@ -42,7 +49,10 @@ function makeClienteSession(clientId: string | null, extra: Record<string, unkno
 
 function makeAnonSession() {
   return {
-    auth: { getUser: vi.fn().mockResolvedValue({ data: { user: null } }) },
+    auth: {
+      getUser: vi.fn().mockResolvedValue({ data: { user: null } }),
+      getClaims: vi.fn().mockResolvedValue({ data: null }),
+    },
     from: vi.fn(),
   }
 }

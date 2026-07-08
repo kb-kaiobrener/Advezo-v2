@@ -16,35 +16,12 @@ interface Totals {
 }
 
 // ── Formatadores PT-BR (AC 3.4.3) ────────────────────────────────────────────
+// Extraídos para @/lib/format (Story 3.8): módulos client-safe não podem
+// alcançar este arquivo (que importa o barrel do database). Import + re-export
+// mantém o uso interno e a compatibilidade com importadores existentes.
 
-const currencyFmt = new Intl.NumberFormat('pt-BR', {
-  style: 'currency',
-  currency: 'BRL',
-  minimumFractionDigits: 2,
-  maximumFractionDigits: 2,
-})
-const numberFmt = new Intl.NumberFormat('pt-BR')
-const percentFmt = new Intl.NumberFormat('pt-BR', {
-  style: 'percent',
-  minimumFractionDigits: 1,
-  maximumFractionDigits: 1,
-})
-
-export function formatBRL(n: number): string {
-  return currencyFmt.format(n)
-}
-
-export function formatNumber(n: number): string {
-  return numberFmt.format(n)
-}
-
-export function formatPercent(ratio: number): string {
-  return percentFmt.format(ratio)
-}
-
-export function formatMultiplier(n: number): string {
-  return `${n.toFixed(1).replace('.', ',')}x`
-}
+import { formatBRL, formatNumber, formatPercent, formatMultiplier } from '@/lib/format'
+export { formatBRL, formatNumber, formatPercent, formatMultiplier }
 
 // ── Classificação de objetivo (AC 3.4.2) ─────────────────────────────────────
 

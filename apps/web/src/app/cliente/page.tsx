@@ -10,8 +10,11 @@ import { ClientePanel } from '@/components/molecules/ClientePanel'
 export default async function ClientePage() {
   const supabase = await createSupabaseServerClient()
   const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect('/cliente/login')
 
-  const clientId = user?.user_metadata?.client_id as string | undefined
+  // Fix BLOCK-003: claim do JWT verificado (getClaims), não do user_metadata do banco
+  const { data: claimsData } = await supabase.auth.getClaims()
+  const clientId = claimsData?.claims?.user_metadata?.client_id as string | undefined
   if (!clientId) redirect('/cliente/login')
 
   // RLS client_read: o cliente só enxerga a própria linha

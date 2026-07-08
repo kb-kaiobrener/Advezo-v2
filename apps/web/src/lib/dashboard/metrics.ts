@@ -1,4 +1,7 @@
-import { formatBRL, formatNumber, formatPercent, formatMultiplier } from '@/lib/whatsapp/report-generator'
+// Import de @/lib/format (client-safe) — NUNCA de report-generator: aquele módulo
+// importa o barrel @advezo/database (server.ts/next/headers) e este arquivo entra
+// em bundle de Client Component (ClientePanel) — Story 3.8.
+import { formatBRL, formatNumber, formatPercent, formatMultiplier } from '@/lib/format'
 
 /** Métricas selecionáveis no dashboard compartilhável (Story 3.7 — Dev Notes). */
 export const AVAILABLE_METRICS = [

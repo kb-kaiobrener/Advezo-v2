@@ -141,10 +141,14 @@ export async function proxy(request: NextRequest) {
 
   // ── Área do cliente final (/cliente) — Story 3.8 ─────────────────────────
   // Posição: imediatamente após getUser(), ANTES de isAuthRoute/isDashboard.
-  // O claim client_id só é confiável por causa do strip no custom_access_token_hook
-  // (AC 3.8.3); aqui ele é usado apenas para ROTEAMENTO — a autorização de dados
-  // vem do Route Handler (guard 403) + RLS client_read.
-  const clienteClaim = user?.user_metadata?.client_id as string | undefined
+  // FONTE DO CLAIM (fix BLOCK-003): getClaims() lê o JWT verificado contra o
+  // JWKS — reflete o que o custom_access_token_hook injeta/remove (AC 3.8.3).
+  // NUNCA usar getUser().user_metadata para claims: retorna o banco
+  // (auth.users.raw_user_meta_data), que não recebe os claims do hook e é
+  // forjável pelo próprio usuário via updateUser(). getUser() continua sendo a
+  // checagem de sessão (usuário existe/token válido).
+  const { data: claimsData } = await supabase.auth.getClaims()
+  const clienteClaim = claimsData?.claims?.user_metadata?.client_id as string | undefined
   const isClienteArea = pathname.startsWith('/cliente')
 
   if (isClienteArea) {

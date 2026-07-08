@@ -37,7 +37,10 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
   }
 
-  const claim = user.user_metadata?.client_id as string | undefined
+  // Fix BLOCK-003: claim lido do JWT verificado (getClaims/JWKS) — o hook só
+  // escreve no token; getUser().user_metadata é o banco, forjável via updateUser().
+  const { data: claimsData } = await supabase.auth.getClaims()
+  const claim = claimsData?.claims?.user_metadata?.client_id as string | undefined
   if (!claim) {
     return NextResponse.json({ error: 'Acesso negado' }, { status: 403 })
   }

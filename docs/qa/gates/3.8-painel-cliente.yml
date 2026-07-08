@@ -1,0 +1,110 @@
+schema: 1
+story: '3.8'
+slug: painel-cliente
+title: Painel Logado do Cliente Final
+gate: PASS
+status_reason: >-
+  Re-gate após FAIL da 1ª rodada. BLOCK-003 corrigido: claim lido via
+  getClaims() (JWT verificado contra JWKS) nos 3 arquivos — getUser() mantido só
+  para checagem de sessão. IMPORT-002 (transitivo, descoberto no reteste)
+  corrigido: formatters extraídos para lib/format.ts client-safe. Varredura
+  transitiva com fronteira 'use server': 40 arquivos client, zero cadeias até o
+  barrel. Matriz independente 10/10 com sessão real de cliente — incluindo 403
+  cross-client na infraestrutura real e gates gestor/anônimo intactos.
+reviewer: 'Quinn'
+updated: '2026-07-07T22:10:00Z'
+previous_gate:
+  verdict: FAIL
+  date: '2026-07-07T20:30:00Z'
+  blockers: ['BLOCK-003 claim lido de getUser().user_metadata (banco/forjável) em vez do JWT']
+
+acceptance_criteria:
+  - id: 'AC-3.8.1'
+    status: met
+    note: >-
+      Convite E2E 7/7 na infra real: generateLink invite → client_users →
+      aceite (verify token_hash) → JWT do aceite já com claim → senha → login.
+      Envio do email em si (SMTP Supabase): verificação manual pós-deploy.
+  - id: 'AC-3.8.2'
+    status: met
+    note: >-
+      Duas camadas verificadas: guard 403 com claim de getClaims() — cross-client
+      real 403 {"error":"Acesso negado"} (matriz item 5) + 14/14 unit (3 asserções:
+      status, corpo, zero queries); RLS client_read como 2ª camada.
+  - id: 'AC-3.8.3'
+    status: met
+    note: >-
+      Anti-spoofing 7/7 na infra real: forja via updateUser() persistiu no banco
+      e foi REMOVIDA do JWT no relogin (client_id E workspace_id); vínculo real
+      injeta claim correto; cliente sem workspace_id. Fonte da aplicação agora é
+      o JWT (getClaims) — coerente com o que o hook controla.
+  - id: 'AC-3.8.4'
+    status: met
+    note: >-
+      Painel 200 com sessão real; período 7/14/30; health por cor; agregação por
+      conta via API com client de sessão (RLS).
+  - id: 'AC-3.8.5'
+    status: met
+    note: >-
+      Matriz: cliente em /clients e / → 307 /cliente; anônimo em /cliente → 307
+      /cliente/login; sem claim → /dashboard (branch verificada na 1ª rodada);
+      /cliente é 100% visualização (nenhuma action de escrita importada).
+  - id: 'AC-3.8.6'
+    status: met
+    note: 'isClienteSessionExpired: 4 testes (limites 7d + fail-closed).'
+  - id: 'AC-3.8.7'
+    status: met
+    note: '14/14 unit + hook/convite/middleware verificados na infraestrutura real.'
+
+resolved_issues:
+  - id: 'BLOCK-003'
+    resolution: >-
+      getClaims() (JWKS-verificado) em proxy.ts, api/cliente/metrics/route.ts e
+      cliente/page.tsx; mocks de teste corrigidos (banco sem claim, claim no JWT).
+      Reteste real: painel 200, /dashboard → /cliente, metrics próprio 200 /
+      alheio 403.
+  - id: 'IMPORT-001'
+    resolution: 'definir-senha → subpath @advezo/database/browser (1ª rodada).'
+  - id: 'IMPORT-002'
+    resolution: >-
+      Cadeia transitiva ClientePanel → metrics.ts → report-generator → barrel.
+      Formatters puros extraídos para lib/format.ts; report-generator
+      importa+re-exporta. Varredura transitiva (fronteira 'use server'): 40
+      arquivos client, zero cadeias.
+
+evidence:
+  tests_run: 14
+  tests_passed: 14
+  regression: '335 passed na suíte completa; falha única pré-existente (workspace-actions)'
+  independent_matrix: >-
+    10/10 com sessão real: painel 200; / e /clients → 307 /cliente; metrics
+    próprio 200 / cross 403 / sem param 403; anônimo: /cliente → login, API 401
+    JSON, /dashboard → /login, /login 200.
+  manual_hook_test: '7/7 (1ª rodada) — forja + strip + injeção reais'
+  manual_invite_e2e: '7/7 (1ª rodada) — email→painel equivalente completo'
+  transitive_scan: "40 'use client' → zero cadeias até o barrel (fronteira 'use server')"
+  cleanup: 'Banco zerado de artefatos QA (clients: 0 confirmado)'
+  files_reviewed:
+    - apps/web/src/proxy.ts
+    - apps/web/src/app/api/cliente/metrics/route.ts
+    - apps/web/src/app/cliente/page.tsx
+    - apps/web/src/lib/format.ts
+    - apps/web/src/lib/dashboard/metrics.ts
+    - apps/web/src/lib/whatsapp/report-generator.ts
+    - apps/web/src/__tests__/cliente-panel.test.ts
+
+quality_checks:
+  code_review: PASS
+  unit_tests: PASS
+  acceptance_criteria: PASS
+  no_regressions: PASS
+  performance: PASS
+  security: PASS
+  documentation: PASS
+
+follow_ups:
+  - '@pm: atualizar Dev Notes da 3.8 (4 divergências aprovadas em checkpoint).'
+  - 'OBS-002 (@architect): workspace_id do gestor via getUser() — migrar para claims JWT em story futura.'
+  - 'Pós-deploy: envio real do email de convite (SMTP Supabase) + smoke do painel em produção.'
+
+waiver: { active: false }

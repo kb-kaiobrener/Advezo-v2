@@ -177,7 +177,23 @@ execution_plan:
       (custom_access_token_hook), RLS e isolamento de dados de cliente — critério de segurança
       exige detalhe máximo. AC 3.8.3 (anti-spoofing do claim client_id no hook) é derivado
       de segurança: sem strip do claim, updateUser() permitiria forjar client_id cross-workspace.
-    status: "pending"
+    status: "done"
+    completed_code_at: "2026-07-07"
+    qa_result: >
+      3.8: FAIL→fix→PASS. 14/14 testes + matriz independente 10/10 com sessão real de
+      cliente (403 cross-client na infraestrutura; anti-spoofing do hook 7/7 com forja
+      real; convite E2E 7/7). 1ª rodada reprovou por BLOCK-003 (claim lido de
+      getUser().user_metadata — banco/forjável — em vez do JWT; fix: getClaims()/JWKS).
+      Dois imports do barrel em bundle client corrigidos no caminho (IMPORT-001 direto,
+      IMPORT-002 transitivo via lib/format.ts); varredura transitiva com fronteira
+      'use server': 40 arquivos client, zero cadeias.
+    qa_concerns:
+      - "OBS-002 (@architect): workspace_id do gestor via getUser() — mesma característica de fonte forjável; migrar para claims JWT em story futura"
+      - "@pm: Dev Notes da 3.8 desatualizadas (4 divergências aprovadas em checkpoint)"
+      - "Pós-deploy: envio real do email de convite (SMTP Supabase) + smoke do painel"
+
+epic_status: "COMPLETE"
+epic_completed_at: "2026-07-07"
 
 pre_production_gate:
   description: >
