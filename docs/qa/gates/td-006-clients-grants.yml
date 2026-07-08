@@ -1,0 +1,59 @@
+schema: 1
+item: 'TD-006'
+slug: clients-workspace-members-grants
+title: 'TD-006 — Story 1.5 (clients CRUD) destravada: grants authenticated + swallows + bind'
+gate: PASS
+status_reason: >-
+  Re-gate aprovado. Migration 000021 (grants authenticated em clients +
+  SELECT em workspace_members, policies ativas verificadas via pg_policies
+  no remoto), swallows corrigidos (api/clients 500 JSON; clients/page mensagem
+  de erro) e bug de closure não-serializável na edição corrigido com
+  updateClient.bind(null, id). Verificação com sessão real de gestor incluiu o
+  SAVE REAL do formulário de edição: POST da Server Action vinculada via flight
+  protocol (Next-Action + bound args do payload RSC) → 303 redirect de sucesso
+  e o NOME MUDOU NO BANCO — não apenas rota 200. RLS cross-workspace re-provada.
+reviewer: 'Quinn'
+updated: '2026-07-08T04:30:00Z'
+
+verificacao_sessao_real:
+  criar_cliente_authenticated_insert: '201 ✅'
+  rls_insert_cross_workspace: '403 ✅'
+  lista_clients_html: 'nome do cliente visível na página ✅'
+  edit_page: '200 + form renderizado com defaultValues (name + document) ✅'
+  action_vinculada_serializada: 'referência "bound updateClient" presente no payload RSC (o que dava 500 antes do .bind) ✅'
+  save_real_via_form: >-
+    POST Next-Action 60b443e3… body [clientId, {name:"ReGate006 SALVO VIA FORM",…}]
+    → HTTP 303 (redirect /clients do updateClient) + banco confirmou o novo nome
+    (fonte de verdade via service_role) ✅
+  notfound_preservado: 'edit de id inexistente → 404 (verificado na rodada @dev)'
+
+fixes_cobertos:
+  - 'Migration 000021: GRANT SELECT/INSERT/UPDATE/DELETE clients + SELECT workspace_members TO authenticated. Policies ativas confirmadas em pg_policies (workspace_members: só workspace_isolation FOR ALL — own_workspace_members dropada pela 000002; clients: workspace_isolation + client_read SELECT). USING como WITH CHECK → isolamento mantido.'
+  - 'api/clients/route.ts: error → 500 JSON com log (nunca [] mascarado).'
+  - 'clients/page.tsx: error → mensagem visível (nunca empty-state falso).'
+  - 'edit/page.tsx: closure → updateClient.bind(null, id) (Server Action vinculada, padrão do new/page).'
+
+evidence:
+  suite: '335 passed (baseline; falha única pré-existente workspace-actions)'
+  cleanup: 'usuários QA, clients de teste e workspace temp removidos (clients: 0)'
+  method: >-
+    Sessão real de gestor (cookie @supabase/ssr, role authenticated) em todas as
+    etapas; service_role usado APENAS para verificação de fonte de verdade e
+    limpeza — lição do TD-005 aplicada.
+
+quality_checks:
+  code_review: PASS
+  unit_tests: PASS
+  acceptance_criteria: PASS
+  no_regressions: PASS
+  security: PASS
+  documentation: PASS
+
+observacoes:
+  - >-
+    OBS-003 (low): dashboard/page.tsx ainda tem `clients ?? []` sem checar error
+    (mesmo padrão de swallow, fora do escopo pedido — o dado agora carrega com o
+    grant, mas um erro futuro voltaria a ser silencioso ali). Sugerido incluir na
+    próxima passada de manutenção.
+
+waiver: { active: false }

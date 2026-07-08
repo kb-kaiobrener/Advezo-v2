@@ -28,7 +28,23 @@ export default async function ClientsPage({
     query = query.lt('created_at', after)
   }
 
-  const { data } = await query
+  const { data, error } = await query
+
+  // Fix TD-006: erro de query não pode virar lista vazia silenciosa — um 403
+  // de grant/RLS escondia os clientes do gestor como se fosse estado normal.
+  if (error) {
+    console.error('[clients/page] erro ao listar clientes:', error.message)
+    return (
+      <div className="mx-auto max-w-2xl px-4 py-8">
+        <h1 className="mb-6 text-xl font-semibold text-foreground">Clientes</h1>
+        <p className="rounded-md bg-red-50 p-4 text-sm text-red-700">
+          Não foi possível carregar seus clientes. Recarregue a página — se o
+          problema persistir, contate o suporte.
+        </p>
+      </div>
+    )
+  }
+
   const clients = (data ?? []) as Client[]
   const hasMore = clients.length > PAGE_SIZE
   const visible = hasMore ? clients.slice(0, PAGE_SIZE) : clients

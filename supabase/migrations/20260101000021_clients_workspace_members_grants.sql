@@ -1,0 +1,32 @@
+-- ============================================================
+-- Migration: 20260101000021_clients_workspace_members_grants  (logical 000021)
+-- Purpose: Fechar TD-006 — role `authenticated` sem grant em clients e
+--          workspace_members quebrava a Story 1.5 inteira de forma SILENCIOSA
+--          (lista/dashboard vazios via `data ?? []`, edição 404, mutations
+--          redirecionando para /onboarding).
+--
+-- Verificação prévia das policies ATIVAS no remoto (pg_policies via
+-- `supabase db query --linked`, 2026-07-08 — histórico de migrations tem
+-- sobreposição de nomes em workspace_members):
+--   workspace_members: APENAS `workspace_isolation` FOR ALL
+--     USING (workspace_id = auth_workspace_id())  [own_workspace_members da
+--     000000 foi dropada pela 000002 — NÃO está ativa]
+--   clients: `workspace_isolation` FOR ALL USING (workspace_id =
+--     auth_workspace_id()) + `client_read` FOR SELECT (id = auth_client_id(),
+--     Story 3.8)
+--
+-- SEGURANÇA:
+--   - with_check é NULL nas policies FOR ALL → o USING é aplicado também como
+--     WITH CHECK em INSERT/UPDATE: authenticated só escreve linhas do
+--     workspace do próprio claim (hook). Isolamento mantido — mesmo racional
+--     verificado na 000020 (INSERT cross-workspace → 403).
+--   - workspace_members recebe apenas SELECT (getAuthenticatedWorkspace lê;
+--     escrita de membership continua exclusiva do service client/onboarding).
+--   - Cliente final (claim client_id, sem workspace_id): auth_workspace_id()
+--     NULL → zero linhas em ambas via workspace_isolation; em clients enxerga
+--     só a própria linha via client_read (SELECT). Sem exposição nova.
+--   - Nenhuma concessão a `anon`.
+-- ============================================================
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.clients TO authenticated;
+GRANT SELECT ON public.workspace_members TO authenticated;

@@ -35,7 +35,10 @@ export default async function EditClientPage({
           contact_email: client.contact_email ?? '',
           contact_phone: client.contact_phone ?? '',
         }}
-        onSubmit={(data) => updateClient(id, data)}
+        // Server Action VINCULADA (.bind) — closures comuns não são serializáveis
+        // de Server → Client Component (bug pré-existente da Story 1.5, mascarado
+        // pelo notFound() do TD-006 que interrompia a render antes do form)
+        onSubmit={updateClient.bind(null, id)}
         submitLabel="Salvar alterações"
       />
     </div>

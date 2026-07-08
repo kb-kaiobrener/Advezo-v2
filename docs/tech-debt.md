@@ -143,25 +143,56 @@ VEREDICTO: 🔴 FONTES DIVERGEM — mesmo mecanismo do BLOCK-003
 
 ---
 
-### TD-006 — Gap sistêmico de GRANT `authenticated` em tabelas Epic 1/2 (session client) 🔴 provável quebra
+### TD-006 — Story 1.5 (clients CRUD) quebrada: `authenticated` sem grant em `clients`/`workspace_members` ✅ RESOLVIDO (re-gate PASS 2026-07-08)
+
+**Re-gate @qa (PASS):** verificação com sessão real de gestor incluiu o **save real do formulário de edição** — POST da Server Action vinculada via flight protocol → 303 + nome alterado no banco (fonte de verdade). Lista com nome visível no HTML, edit 200 com defaultValues, RLS cross-workspace 403. Ver `docs/qa/gates/td-006-clients-grants.yml`. OBS-003 (low): `dashboard/page.tsx` mantém `clients ?? []` sem checar error — próxima manutenção.
+
+**Correção aplicada (2026-07-08, @dev):**
+1. **Migration 000021** (`clients_workspace_members_grants`): `GRANT SELECT, INSERT, UPDATE, DELETE ON clients TO authenticated` + `GRANT SELECT ON workspace_members TO authenticated`. Policies ATIVAS verificadas no remoto via `supabase db query --linked` em `pg_policies` (equivalente à aba Policies do painel): `workspace_members` tem APENAS `workspace_isolation FOR ALL` (a `own_workspace_members` da 000000 foi dropada pela 000002 — não está ativa); `clients` tem `workspace_isolation FOR ALL` + `client_read FOR SELECT` (3.8). `with_check` null → USING vale como WITH CHECK; grant seguro.
+2. **Swallows corrigidos:** `api/clients/route.ts` → checa `error`, retorna 500 JSON; `clients/page.tsx` → checa `error`, renderiza mensagem de falha (nunca lista vazia silenciosa).
+3. **Bug adicional desmascarado e corrigido:** `edit/page.tsx` passava closure `(data) => updateClient(id, data)` de Server → Client Component (não serializável → 500). Pré-existente da Story 1.5, invisível porque o `notFound()` interrompia antes do form. Fix: `updateClient.bind(null, id)` (Server Action vinculada, padrão do `new/page.tsx`).
+
+**Reteste (sessão real de gestor, role authenticated):** workspace_members SELECT 200 (retorna a própria membership); clients INSERT 201 / UPDATE 200; RLS barra INSERT cross-workspace 403; `GET /api/clients` lista o cliente (não `[]`); página `/clients` mostra o nome no HTML; `/clients/[id]/edit` → 200 (id inexistente → 404 preservado). Suíte 335 passed (baseline).
+
+---
+
+#### Registro original (2026-07-08, @qa):
+
+### (histórico) TD-006 — Story 1.5 (clients CRUD) quebrada: `authenticated` sem grant em `clients`/`workspace_members` 🔴 CONFIRMADO
 
 | Campo | Valor |
 |-------|-------|
-| **Severidade** | HIGH (se clients CRUD via app for exercitado) |
-| **Origem** | Re-gate TD-005 (@qa) — 2026-07-07 |
-| **Arquivos** | `clients.ts` (session client), tabelas `workspace_members`, `clients`, `leads`, `lead_forms`, `ad_accounts` (INSERT/UPDATE) |
+| **Severidade** | **HIGH — funcional, falha SILENCIOSA** |
+| **Origem** | Re-gate TD-005 (@qa); verificação dedicada 2026-07-08 |
+| **Arquivos** | `clients.ts`, `(dashboard)/clients/page.tsx`, `(dashboard)/clients/[id]/edit/page.tsx`, `(dashboard)/dashboard/page.tsx`, `api/clients/route.ts` |
+| **Tabelas** | `clients`, `workspace_members` — 403 para `authenticated` |
 
-**Descrição:** O role `authenticated` (usado por `createSupabaseServerClient` = anon+cookie) recebe **403** em `workspace_members`, `clients`, `leads`, `lead_forms`, e em `ad_accounts` para INSERT/UPDATE (só SELECT foi concedido em 000018). Apenas tabelas com `GRANT ... TO authenticated` explícito funcionam (whatsapp_accounts, whatsapp_connections, report_schedules, dashboard_configs, report_logs, client_users).
+**Verificação dedicada (sessão real de gestor, role authenticated — NÃO service_role):**
 
-**Verificado (token real de gestor, role authenticated):** SELECT `workspace_members` 403, INSERT `clients` 403, INSERT `ad_accounts` 403.
+| Operação (via session client = authenticated) | Consumidor | REST | Efeito no app |
+|---|---|---|---|
+| `workspace_members` SELECT | `getAuthenticatedWorkspace` (base de TODAS as mutations) | **403** | membership null → `redirect('/onboarding')` |
+| `clients` SELECT | `clients/page`, `edit/page`, `dashboard`, `api/clients` | **403** | lista/dashboard **vazios** (`data ?? []`); edição → `notFound()` **404** |
+| `clients` INSERT | `createClient` | **403** | (não alcançado — redirect antes) |
+| `clients` UPDATE | `updateClient`, `archiveClient` | **403** | (não alcançado — redirect antes) |
+| `clients` DELETE | — (soft-delete via UPDATE) | **403** | n/a |
 
-**Impacto:** `clients.ts` (`getAuthenticatedWorkspace` + `createClient`) usa session client → `workspace_members` 403 → membership null → redirect `/onboarding`; INSERT `clients` 403. CRUD de clientes (Story 1.5) provavelmente quebrado via app. `workspace.ts` (onboarding) não é afetado — usa service client.
+**Prova definitiva (falha silenciosa):** cliente real inserido no workspace do gestor (via service_role) EXISTE no banco (`0-0/1`), mas `GET /api/clients` do gestor **dono do workspace** retorna `[]`. O 403 é engolido por `data ?? []` (api/clients L20; clients/page; dashboard) — **pior que erro duro: dados do gestor ficam invisíveis sem nenhum aviso**. `edit/page` faz `if (!data) notFound()` → **404** ao editar qualquer cliente.
 
-**Resolução sugerida:** Auditoria completa session-client vs service-client; conceder `authenticated` (CRUD) nas tabelas consumidas por session client, OU padronizar handlers para service client com escopo explícito de workspace_id (padrão das actions novas). Coordenar com BLOCK-004/005 do TD-005.
+**Dúvida fechada (não é falso alarme):** varredura de TODOS os `GRANT ... TO authenticated` das migrations — apenas whatsapp_accounts (000011), whatsapp_connections (000012), report_schedules (000013), dashboard_configs (000014), report_logs (000015), client_users (000018), ad_accounts/ad_campaigns/campaign_metrics/lead_forms/leads (000018/000020). **Nenhum caminho concede `clients` nem `workspace_members` a authenticated.** Definitivamente quebrado.
 
-**Parcialmente endereçado (2026-07-07):** migration 000020 concedeu authenticated em `lead_forms`/`leads` (além de ad_accounts/ad_campaigns/campaign_metrics). PENDENTE: `clients` e `workspace_members` seguem 403 para authenticated — `clients.ts` (`getAuthenticatedWorkspace` + `createClient`) usa session client e provavelmente ainda quebra. Confirmar e decidir grant authenticated vs refactor para service client.
+**Por que não pegou antes:** `layout.tsx` lê `workspace_members` via **service client** (a navegação funciona), mascarando o problema; e os reads de clients engolem o 403 como lista vazia. Gates da Story 1.5 usaram mocks/service_role — mesmo ponto cego do TD-005.
 
-**Trigger:** próxima story que tocar clients CRUD, ou auditoria dedicada de grants.
+**RLS (segurança do fix confirmada):** `clients` e `workspace_members` têm `workspace_isolation FOR ALL USING (workspace_id = auth_workspace_id())` sem `WITH CHECK` separado → o `USING` é aplicado como `WITH CHECK` no INSERT. Grant a authenticated é seguro (isolamento por workspace mantido), idêntico ao fix da 000020.
+
+**Resolução proposta (decisão do @dev — grant vs refactor):**
+- **Opção A (grant, consistente com 000020):** migration `GRANT SELECT, INSERT, UPDATE, DELETE ON public.clients TO authenticated;` + `GRANT SELECT ON public.workspace_members TO authenticated;`
+- **Opção B (refactor):** `clients.ts` + read paths passam a usar service client com escopo explícito de workspace_id (padrão das actions novas — report-send/dashboard/alert-destination).
+- **Adicional (independe da opção):** corrigir o swallow — `api/clients`, `clients/page`, `dashboard` devem checar `error` e sinalizar falha em vez de `data ?? []` silencioso.
+
+**Reteste obrigatório:** sessão real de gestor — GET /api/clients mostra cliente existente; createClient/updateClient/archiveClient completam (não redirecionam a /onboarding); INSERT cross-workspace barrado por RLS.
+
+**Trigger:** IMEDIATO (mesma criticidade do TD-005 — Story 1.5 é fundação). Dono: @dev, validação @qa com sessão real.
 
 ---
 
