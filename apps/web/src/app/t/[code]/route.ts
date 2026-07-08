@@ -68,6 +68,10 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ code: strin
 
   const logClick = async () => {
     try {
+      // Sem GLOBAL_HMAC_SECRET, pula o log em vez de hashear com segredo vazio —
+      // um ip_hash sem segredo real quebraria silenciosamente o casamento com
+      // phone_number_hash da Wave 3 (4.4), calculado com o segredo correto.
+      if (!secret) return
       const ipHash = await hmacHex(ip, link.workspace_id + secret)
       await fetch(`${supabaseUrl}/rest/v1/tracked_clicks`, {
         method: 'POST',

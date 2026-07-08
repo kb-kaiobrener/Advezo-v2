@@ -133,6 +133,18 @@ describe('GET /t/[code]', () => {
     expect(body.ip_hash).toMatch(/^[0-9a-f]{64}$/)
     expect(JSON.stringify(body)).not.toContain('1.2.3.4')
   })
+  it('sem GLOBAL_HMAC_SECRET → redirect normal, mas NENHUM clique logado (nunca hash com segredo vazio)', async () => {
+    vi.stubEnv('GLOBAL_HMAC_SECRET', '')
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce({ json: async () => [{ id: 'l1', workspace_id: 'ws1', destination_whatsapp: '5511999998888', active: true }] })
+      .mockResolvedValue({ ok: true })
+    vi.stubGlobal('fetch', fetchMock)
+    const res = await req('ativo123')
+    expect(res.status).toBe(302)
+    await new Promise(r => setTimeout(r, 20))
+    expect(fetchMock.mock.calls.find(c => String(c[0]).includes('tracked_clicks'))).toBeUndefined()
+  })
+
   it('falha no log NÃO impede o redirect (AC 4.3.4)', async () => {
     const fetchMock = vi.fn()
       .mockResolvedValueOnce({ json: async () => [{ id: 'l1', workspace_id: 'ws1', destination_whatsapp: '5511999998888', active: true }] })
