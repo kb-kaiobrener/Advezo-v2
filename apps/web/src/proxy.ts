@@ -108,6 +108,13 @@ export async function proxy(request: NextRequest) {
   // nunca por sessão de usuário. Sem esta exclusão, o gate de login abaixo
   // redirecionaria a chamada do scheduler para /login (307) antes do handler rodar.
   // Story 3.5/3.6 (crons de relatório e alertas); Epic 2 (sync); Story 2.9 (alertas).
+  // Redirect público de rastreamento (/t/[code]) e página de link inativo —
+  // Story 4.3. Sem sessão por design; o handler usa service role server-side.
+  const isTrackingPublic = pathname.startsWith('/t/') || pathname === '/link-indisponivel'
+  if (isTrackingPublic) {
+    return NextResponse.next()
+  }
+
   const isServiceRoute =
     pathname.startsWith('/api/cron/') ||
     pathname.startsWith('/api/sync/') ||
