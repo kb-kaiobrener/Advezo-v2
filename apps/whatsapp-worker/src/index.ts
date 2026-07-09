@@ -21,6 +21,7 @@ import pino from 'pino'
 import QRCode from 'qrcode'
 import { createSupabaseServiceClient } from '@advezo/database/service'
 import { CircuitBreaker } from './circuit-breaker.js'
+import { processIncomingMessage } from './tracking.js'
 import {
   ensureBucket,
   restoreSession,
@@ -126,6 +127,20 @@ async function connect(workspaceId: string, accountId: string): Promise<void> {
       await saveSession(workspaceId, accountId)
     } catch (err) {
       logger.error({ err, accountId }, 'falha ao salvar sessão no Storage')
+    }
+  })
+
+  // Rastreamento de origem (Story 4.4): matching ASSÍNCRONO via void — nunca
+  // bloqueia o recebimento (AC 4.4.5). Só mensagens RECEBIDAS (não fromMe).
+  sock.ev.on('messages.upsert', ({ messages, type }) => {
+    if (type !== 'notify') return
+    for (const msg of messages) {
+      const jid = msg.key?.remoteJid
+      if (!jid || msg.key?.fromMe) continue
+      void processIncomingMessage(
+        { workspaceId, accountId, remoteJid: jid },
+        { sendText: async (to, text) => { await sock.sendMessage(to, { text }) } }
+      )
     }
   })
 
