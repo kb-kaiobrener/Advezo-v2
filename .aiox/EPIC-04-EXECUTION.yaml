@@ -20,25 +20,28 @@ execution_plan:
     stories: ["4.1"]
     description: "Schema de rastreamento (tracking_links, tracked_clicks, tracked_conversations)"
     stop_gate: "exceção 1 — migration antes do push"
-    status: "in_progress"
+    status: "done"  # migration 000022 aprovada linha a linha e aplicada (2026-07-08)
   wave_2:
     stories: ["4.2", "4.3"]
     description: "Gerador/gestão de links + redirect público /t/[code] com log de cliques"
     stop_gate: "exceção 2 — rota pública /t/[code] antes de considerar aplicada"
     depends_on: ["wave_1"]
-    status: "pending"
+    status: "done"  # exceção 2 aprovada (evidência anônima: 302 wa.me + clique com gclid/ip_hash; 404; inativo; guard sem secret). 11/11 testes
   wave_3:
     stories: ["4.4"]
     description: "Captura de origem na 1ª mensagem (worker Baileys) + aviso ao titular"
     stop_gate: "exceção 3 — envio real de mensagem de aviso"
     depends_on: ["wave_2"]
-    status: "pending"
+    status: "done_code"  # código publicado e aprovado; VALIDAÇÃO REAL PENDENTE em staging (conta WA conectada + clique + msg do número de teste → aviso). 26/26 testes worker
   wave_4:
     stories: ["4.5"]
     description: "Dashboard de origem de conversas"
     stop_gate: "nenhum (UI + leitura)"
     depends_on: ["wave_3"]
-    status: "pending"
+    status: "done"  # /rastreamento/conversas: filtros GET, resumo %, untracked visível, empty-state CTA, force-dynamic
+
+pending_real_validation:
+  - "Wave 3 (4.4): fluxo E2E em staging — conectar número de teste, clicar /t/{code}, enviar mensagem, conferir tracked_conversations + aviso recebido"
 
 security_constraints:
   - "LGPD: phone_number_hash/ip_hash = HMAC-SHA256 com salt workspace_id + GLOBAL_HMAC_SECRET — pseudonimização, nunca chamar de anônimo"
