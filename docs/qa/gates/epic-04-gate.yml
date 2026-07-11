@@ -1,0 +1,62 @@
+schema: 1
+item: 'EPIC-04'
+slug: rastreamento-origem
+title: 'Gate formal Epic 4 — Stories 4.1 e 4.4 (pré-requisito do Epic 5)'
+gate: PASS
+status_reason: >-
+  4.1: estado ativo do banco (pg_policies + role_table_grants via db query
+  --linked) idêntico à migration 000022 revisada linha a linha; spot-check com
+  sessão real de gestor confirma a matriz (tracking_links INSERT 201;
+  tracked_clicks/tracked_conversations INSERT 403 — escrita exclusiva de
+  redirect/worker). 4.4: módulo tracking.ts e integração messages.upsert
+  corretos (26/26 testes; assíncrono via void; LIFO; untracked nunca ignorada;
+  LGPD sem número em claro). FU-001 registrado como acompanhamento (não
+  bloqueia): disputa do mesmo clique por números diferentes quase simultâneos.
+reviewer: 'Quinn'
+updated: '2026-07-11'
+
+story_4_1:
+  policies_ativas: >-
+    tracking_links/tracked_conversations: workspace_isolation FOR ALL
+    (workspace_id = auth_workspace_id()); tracked_clicks: FOR ALL via subquery
+    de tracking_links — exatamente como revisado.
+  grants_matriz: >-
+    tracking_links: authenticated+service_role CRUD; tracked_clicks e
+    tracked_conversations: authenticated SELECT-only, service_role CRUD;
+    ZERO grants para anon.
+  spot_check_sessao_real: 'INSERT links 201 / clicks 403 / conversations 403 ✅'
+
+story_4_4:
+  revisao: >-
+    processIncomingMessage: só @s.whatsapp.net; skip sem GLOBAL_HMAC_SECRET
+    (coerente com 4.3); client via whatsapp_connections; dedup pela UNIQUE;
+    LIFO global documentado; untracked sempre registrada; aviso ao titular com
+    falha não-destrutiva; nunca propaga exceção. Integração index.ts: void em
+    messages.upsert, só !fromMe — não bloqueia atendimento (AC 4.4.5).
+  corrida_mesmo_numero: 'PROTEGIDA — UNIQUE(workspace,client,hash); 2º INSERT falha e é logado.'
+  FU-001:
+    severity: medium
+    tipo: acompanhamento (não bloqueia)
+    finding: >-
+      Números DIFERENTES quase simultâneos disputando o mesmo clique não-casado:
+      ambos leem o mesmo clique (SELECT LIFO sem lock), ambos inserem tracked com
+      o MESMO click_id, e o UPDATE phone_matched=true é incondicional (idempotente,
+      sem erro). Observável: 2 conversas → 1 clique. O código documenta o LIFO mas
+      NÃO documenta essa janela — comportamento não bate integralmente com o
+      documentado.
+    recomendacao: >-
+      Claim atômico (padrão 3.6): UPDATE tracked_clicks SET phone_matched=true
+      WHERE id=X AND phone_matched=false RETURNING id ANTES do INSERT; perdedor
+      re-consulta o próximo clique ou registra untracked. Enquanto não aplicado,
+      documentar a janela no cabeçalho do tracking.ts.
+
+fora_de_escopo:
+  - 'Validação E2E real (número conectado + clique + mensagem + aviso) — depende do Kaio em staging (exceção 3, registrada no EPIC-04-EXECUTION.yaml).'
+  - 'Stories 4.2/4.3/4.5: cobertas pelas aprovações das waves (exceção 2 com evidência anônima real; dashboard read-only).'
+
+evidence:
+  suite_web: '346 passed (falha única pré-existente workspace-actions)'
+  suite_worker: '26/26'
+  cleanup: 'artefatos de QA removidos (client/link/user/workspace temp)'
+
+waiver: { active: false }
