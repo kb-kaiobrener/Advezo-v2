@@ -53,7 +53,14 @@ export async function callAnthropic(prompt: string): Promise<{ text: string; mod
       messages: [{ role: 'user', content: prompt }],
     }),
   })
-  if (!res.ok) throw new Error(`Anthropic ${res.status}: ${(await res.text()).slice(0, 200)}`)
+  if (!res.ok) {
+    // NUNCA incluir o corpo bruto no erro (que vai p/ a coluna queue.error):
+    // respostas de erro da API podem ecoar trechos do prompt (= conversa).
+    // Só status + error.type estruturado, se parseável.
+    let errType = ''
+    try { errType = (JSON.parse(await res.text()) as { error?: { type?: string } }).error?.type ?? '' } catch { /* corpo descartado */ }
+    throw new Error(`Anthropic ${res.status}${errType ? ` (${errType})` : ''}`)
+  }
   const body = (await res.json()) as { model: string; content: Array<{ text: string }> }
   return { text: body.content?.[0]?.text ?? '', modelVersion: body.model }
 }

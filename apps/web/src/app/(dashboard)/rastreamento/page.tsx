@@ -46,9 +46,11 @@ export default async function RastreamentoPage() {
     <div className="mx-auto max-w-3xl px-4 py-8">
       <div className="mb-6 flex items-center justify-between">
         <h1 className="text-xl font-semibold text-foreground">Rastreamento → Links</h1>
-        <a href="/rastreamento/conversas" className="text-sm text-primary hover:underline">
-          Ver conversas rastreadas →
-        </a>
+        <span className="space-x-3 text-sm">
+          <a href="/rastreamento/conversas" className="text-primary hover:underline">Conversas</a>
+          <a href="/rastreamento/funil" className="text-primary hover:underline">Funil</a>
+          <a href="/rastreamento/revisao" className="text-primary hover:underline">Revisão</a>
+        </span>
       </div>
       <TrackingLinksManager clients={clients ?? []} links={enriched} baseUrl={baseUrl} />
     </div>
