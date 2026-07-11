@@ -196,6 +196,12 @@ VEREDICTO: 🔴 FONTES DIVERGEM — mesmo mecanismo do BLOCK-003
 
 ---
 
+### NOTA-OBS-005 — `needs_review` derivado na leitura (decisão registrada, MAINT-01)
+
+Decisão consciente (2026-07-11): manter derivado (`score < limiar AND reviewed_by IS NULL`), sem materializar campo. Consequências documentadas no cabeçalho de `classifier.ts`: mudar o limiar re-escopa a fila de não-revisados; **Epic 6 deve congelar o limiar no momento do envio da conversão** (requisito forward do gate do Epic 5). Materializar o campo no futuro = migration + backfill.
+
+---
+
 ## Items Resolvidos
 
 *(nenhum ainda — TD-005 parcial, TD-006 aberto)*

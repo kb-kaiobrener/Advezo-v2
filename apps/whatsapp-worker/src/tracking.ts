@@ -149,13 +149,29 @@ export async function processIncomingMessage(
       .eq('workspace_id', workspaceId).eq('client_id', conn.client_id)
     const linkIds = (links ?? []).map((l: { id: string }) => l.id)
 
+    // MAINT-01 AC 1 (FU-001): CLAIM ATÔMICO do clique — padrão da Story 3.6.
+    // Dois números quase simultâneos disputando o mesmo clique: o SELECT LIFO
+    // pode devolver o mesmo candidato para ambos, mas o UPDATE condicional
+    // (WHERE phone_matched = false) só retorna linha para UM. O perdedor
+    // re-consulta o próximo candidato (até 5 tentativas); sem sobra → untracked.
+    // Janela residual aceita: claim feito ANTES do INSERT da conversa — se o
+    // processo morrer entre claim e INSERT, o clique fica consumido sem
+    // conversa (mesmo tradeoff no-dup > guaranteed-delivery da 3.6).
     let click: { id: string; link_id: string } | null = null
     if (linkIds.length) {
-      const { data } = await db
-        .from('tracked_clicks').select('id, link_id')
-        .in('link_id', linkIds).eq('phone_matched', false).gte('clicked_at', since)
-        .order('clicked_at', { ascending: false }).limit(1).maybeSingle()
-      click = data ?? null
+      for (let attempt = 0; attempt < 5 && !click; attempt++) {
+        const { data: candidate } = await db
+          .from('tracked_clicks').select('id, link_id')
+          .in('link_id', linkIds).eq('phone_matched', false).gte('clicked_at', since)
+          .order('clicked_at', { ascending: false }).limit(1).maybeSingle()
+        if (!candidate) break
+        const { data: claimed } = await db
+          .from('tracked_clicks').update({ phone_matched: true })
+          .eq('id', candidate.id).eq('phone_matched', false)
+          .select('id').maybeSingle()
+        if (claimed) click = candidate
+        else log('claim perdido — tentando próximo clique', { candidate: candidate.id })
+      }
     }
 
     const now = new Date().toISOString()
@@ -178,7 +194,7 @@ export async function processIncomingMessage(
     }
 
     if (click) {
-      await db.from('tracked_clicks').update({ phone_matched: true }).eq('id', click.id)
+      // phone_matched já setado pelo claim atômico acima (MAINT-01 AC 1)
       log('conversa TRACKED', { click: click.id, link: click.link_id })
 
       // AVISO AO TITULAR (NFR-8 / AC 4.4.6) — template da Story 3.2

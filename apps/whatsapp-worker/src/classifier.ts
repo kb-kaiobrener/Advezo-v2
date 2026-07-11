@@ -13,6 +13,15 @@
 // máx. 90 dias pós-classificação (cron cleanup-messages). O subprocessamento
 // Anthropic deve constar dos termos de uso do produto.
 //
+// NEEDS_REVIEW DERIVADO NA LEITURA (MAINT-01 AC 3 / OBS-005 — decisão): este
+// worker NÃO grava flag de revisão; salva apenas confidence_score bruto.
+// "Pendente de revisão" é derivado nas telas por (score < limiar AND
+// reviewed_by IS NULL). Consequências conscientes: (a) mudar o limiar
+// re-escopa a fila de itens AINDA não revisados; (b) o Epic 6 DEVE congelar
+// o limiar NO MOMENTO do envio da conversão (requisito forward do gate do
+// Epic 5) — nunca depender do valor corrente do limiar para autorizar envio
+// retroativamente.
+//
 // GATE DE ATIVAÇÃO (exceção 4 do modo semi-autônomo): a chamada REAL só ocorre
 // com CLASSIFICATION_ENABLED=true E ANTHROPIC_API_KEY configuradas — ligar a
 // flag em produção/staging é o ato explícito de aprovação da primeira rodada
@@ -82,7 +91,10 @@ export function parseClassification(text: string): Classification {
   if (!jsonMatch) throw new Error('resposta sem JSON')
   const c = JSON.parse(jsonMatch[0]) as Classification
   const stages = ['awareness', 'interest', 'consideration', 'intent', 'sale']
-  if (!stages.includes(c.funnel_stage)) throw new Error(`funnel_stage inválido: ${c.funnel_stage}`)
+  // MAINT-01 AC 2 (OBS-004): NUNCA interpolar valor vindo do modelo na mensagem
+  // de erro — ela é persistida em queue.error e o output do modelo poderia ecoar
+  // fragmento de conversa. Valor omitido de propósito.
+  if (!stages.includes(c.funnel_stage)) throw new Error('funnel_stage inválido (valor omitido do log)')
   if (typeof c.is_sale !== 'boolean') throw new Error('is_sale inválido')
   if (typeof c.confidence_score !== 'number' || c.confidence_score < 0 || c.confidence_score > 1)
     throw new Error('confidence_score inválido')

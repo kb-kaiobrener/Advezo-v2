@@ -80,6 +80,35 @@ describe('processIncomingMessage', () => {
     expect(sendText).toHaveBeenCalledWith(P.remoteJid, CONN.notice_template) // AC 4.4.6
   })
 
+  it('MAINT-01 AC1: claim perdido → tenta o PRÓXIMO candidato (nunca o mesmo click_id)', async () => {
+    const db = makeDb({
+      whatsapp_connections: CONN,
+      tracked_conversations: [null],
+      tracking_links: [[{ id: 'l1' }]],
+      // select candA → claim FALHA (rival levou) → select candB → claim OK
+      tracked_clicks: [{ id: 'candA', link_id: 'l1' }, null, { id: 'candB', link_id: 'l1' }, { id: 'candB' }],
+      conversation_classification_queue: [null],
+    })
+    await processIncomingMessage(P, { db, sendText: vi.fn().mockResolvedValue(undefined) })
+    const ins = (db as unknown as { _writes: Array<{ table: string; payload: Row }> })._writes
+      .find(x => x.table === 'tracked_conversations')!
+    expect(ins.payload).toMatchObject({ status: 'tracked', click_id: 'candB' })
+  })
+
+  it('MAINT-01 AC1: todos os claims perdidos e sem candidatos → UNTRACKED', async () => {
+    const db = makeDb({
+      whatsapp_connections: CONN,
+      tracked_conversations: [null],
+      tracking_links: [[{ id: 'l1' }]],
+      tracked_clicks: [{ id: 'candA', link_id: 'l1' }, null, null], // claim falha, próximo select vazio
+      conversation_classification_queue: [null],
+    })
+    await processIncomingMessage(P, { db })
+    const ins = (db as unknown as { _writes: Array<{ table: string; payload: Row }> })._writes
+      .find(x => x.table === 'tracked_conversations')!
+    expect(ins.payload).toMatchObject({ status: 'untracked', click_id: null })
+  })
+
   it('sem clique na janela → UNTRACKED (nunca ignorada) e sem aviso', async () => {
     const db = makeDb({
       whatsapp_connections: CONN,

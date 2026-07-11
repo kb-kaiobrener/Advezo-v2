@@ -40,11 +40,24 @@ export default async function DashboardLayout({
     role: membership.role,
   }
 
+  // MAINT-01 AC 4 (AC 5.4.6): badge de pendentes de revisão no menu global.
+  // Limiar SEMPRE via servidor (workspace_settings não tem grant authenticated).
+  const [{ data: settings }, { data: pend }] = await Promise.all([
+    serviceClient.from('workspace_settings')
+      .select('classification_confidence_threshold')
+      .eq('workspace_id', membership.workspace_id).maybeSingle(),
+    serviceClient.from('conversation_classifications')
+      .select('confidence_score')
+      .eq('workspace_id', membership.workspace_id).is('reviewed_by', null),
+  ])
+  const threshold = Number(settings?.classification_confidence_threshold ?? 0.7)
+  const reviewPending = (pend ?? []).filter(p => Number(p.confidence_score) < threshold).length
+
   return (
     <QueryProvider>
       <WorkspaceProvider workspace={workspace}>
         <div className="flex h-screen overflow-hidden">
-          <Sidebar />
+          <Sidebar reviewPending={reviewPending} />
           <div className="flex flex-1 flex-col overflow-hidden">
             <TopBar />
             <main className="flex-1 overflow-y-auto p-6">{children}</main>

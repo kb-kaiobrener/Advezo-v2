@@ -27,8 +27,17 @@ export async function reviewClassification(
   classificationId: string,
   data: { action: 'confirm' } | { action: 'correct'; funnel_stage: FunnelStage; is_sale: boolean; sale_value_estimate: number | null }
 ) {
-  if (data.action === 'correct' && !STAGES.includes(data.funnel_stage)) {
-    return { error: 'Etapa de funil inválida' }
+  // MAINT-01 AC 5: TODA validação de entrada ANTES de getMembership (padrão 3.3/3.6)
+  if (data.action !== 'confirm' && data.action !== 'correct') {
+    return { error: 'Ação inválida' }
+  }
+  if (data.action === 'correct') {
+    if (!STAGES.includes(data.funnel_stage)) return { error: 'Etapa de funil inválida' }
+    if (typeof data.is_sale !== 'boolean') return { error: 'is_sale inválido' }
+    if (data.sale_value_estimate !== null &&
+        (typeof data.sale_value_estimate !== 'number' || Number.isNaN(data.sale_value_estimate) || data.sale_value_estimate < 0)) {
+      return { error: 'Valor de venda inválido' }
+    }
   }
   const { error, user, ws } = await getMembership()
   if (error) return { error }

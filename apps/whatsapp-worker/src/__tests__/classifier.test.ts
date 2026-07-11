@@ -39,6 +39,17 @@ describe('parseClassification', () => {
     expect(() => parseClassification('{"funnel_stage":"x","is_sale":true,"confidence_score":0.5}')).toThrow()
     expect(() => parseClassification('nada')).toThrow()
   })
+
+  it('MAINT-01 AC2: stage inválido do modelo NÃO vaza na mensagem de erro (queue.error)', () => {
+    const malicious = 'cliente disse: meu cpf é 123'
+    try {
+      parseClassification(JSON.stringify({ funnel_stage: malicious, is_sale: true, confidence_score: 0.9 }))
+      expect.unreachable()
+    } catch (e) {
+      expect((e as Error).message).not.toContain('cpf')
+      expect((e as Error).message).not.toContain(malicious)
+    }
+  })
 })
 
 describe('processQueueItem', () => {

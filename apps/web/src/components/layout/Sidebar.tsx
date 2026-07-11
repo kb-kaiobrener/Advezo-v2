@@ -17,6 +17,7 @@ import {
   ChevronRight,
   ChevronDown,
   LogOut,
+  Route,
   type LucideIcon,
 } from 'lucide-react'
 import { createSupabaseBrowserClient } from '@advezo/database/browser'
@@ -39,6 +40,7 @@ const navItems: NavItem[] = [
   { href: '/conversions', label: 'Conversões', icon: TrendingUp },
   { href: '/campaigns', label: 'Campanhas', icon: Megaphone },
   { href: '/leads', label: 'Leads', icon: UserPlus },
+  { href: '/rastreamento', label: 'Rastreamento', icon: Route },
   { href: '/reports', label: 'Relatórios', icon: BarChart2 },
   { href: '/ai', label: 'Assistente IA', icon: BrainCircuit },
 ]
@@ -61,9 +63,10 @@ interface NavLinkProps {
   item: NavItem
   collapsed: boolean
   active: boolean
+  badge?: number // MAINT-01 AC 4 (AC 5.4.6): pendentes de revisão no menu global
 }
 
-function NavLink({ item, collapsed, active }: NavLinkProps) {
+function NavLink({ item, collapsed, active, badge }: NavLinkProps) {
   const Icon = item.icon
   return (
     <Link
@@ -81,11 +84,16 @@ function NavLink({ item, collapsed, active }: NavLinkProps) {
     >
       <Icon className={cn('size-5 shrink-0', active && 'text-brand-600')} />
       {!collapsed && <span className="truncate">{item.label}</span>}
+      {!collapsed && !!badge && badge > 0 && (
+        <span className="ml-auto rounded-full bg-amber-100 px-1.5 py-0.5 text-xs font-medium text-amber-700">
+          {badge}
+        </span>
+      )}
     </Link>
   )
 }
 
-export function Sidebar() {
+export function Sidebar({ reviewPending = 0 }: { reviewPending?: number } = {}) {
   const pathname = usePathname()
   const router = useRouter()
 
@@ -195,6 +203,7 @@ export function Sidebar() {
             item={item}
             collapsed={collapsed}
             active={pathname.startsWith(item.href)}
+            badge={item.href === '/rastreamento' ? reviewPending : undefined}
           />
         ))}
 
