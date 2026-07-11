@@ -1,0 +1,32 @@
+epic_id: "05"
+epic_name: "Rastreamento Fase 2: Classificação por IA"
+prd_section: "docs/prd.md § Epic 5 (linha ~668)"
+authorized_by: "usuário (modo semi-autônomo @dev, 4 exceções)"
+completed_code_at: "2026-07-11"
+epic_status: "COMPLETE (código)"
+
+execution_plan:
+  wave_1:
+    stories: ["5.1"]
+    status: "done"  # migration 000023 aprovada e aplicada; coluna do limiar já existia na 000000 (seção redundante removida após rollback transacional do 1º push)
+  wave_2:
+    stories: ["5.2", "5.6"]
+    status: "done"  # ingestão com re-ingestão <1h; /settings/rastreamento (limiar 0.5-1.0)
+  wave_3:
+    stories: ["5.3"]
+    status: "done_code"  # classifier.ts com DI/mocks; migration 000024 (conversation_messages cifrada + cron cleanup 90d) aprovada e aplicada; erro da Anthropic sem corpo bruto
+  wave_4:
+    stories: ["5.4", "5.5"]
+    status: "done"  # revisão manual (getConversationExcerpt conferido — service role + membership, decripta em memória) + funil com cobertura vs meta 70%
+
+pending:
+  - "EXCEÇÃO 4 (decisão do usuário): primeira rodada real Anthropic — ligar CLASSIFICATION_ENABLED=true + ANTHROPIC_API_KEY no Railway; depende da cadeia E2E de staging (número conectado → clique → mensagem → fila)"
+  - "Validação E2E staging compartilhada com Epic 4 (Story 4.4)"
+  - "Desvio AC 5.4.6: badge de pendentes no header da seção Rastreamento, não no menu lateral global — registrar no gate do @qa"
+  - "QA gate formal do épico (pré-requisito do Epic 6: 5.3 + 5.4 + 5.6)"
+  - "FU-001 (Epic 4): claim atômico do clique — manutenção"
+
+security_notes:
+  - "conversation_messages: AES-256-GCM em repouso, RLS deny-all, zero grant authenticated; leitura só via getConversationExcerpt (service role + membership)"
+  - "Retenção LGPD 90d: cron cleanup-messages diário (fail-closed)"
+  - "NFR-6: conversões ao Meta nunca automáticas abaixo do limiar sem reviewed_by — gate implementado na 5.4, consumido no Epic 6"
