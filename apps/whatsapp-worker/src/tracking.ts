@@ -14,6 +14,34 @@
 
 import { createHmac } from 'node:crypto'
 import { createSupabaseServiceClient } from '@advezo/database/service'
+import { encryptToken } from '@advezo/utils'
+
+/**
+ * Persiste conteúdo de mensagem de conversa TRACKED — CIFRADO em repouso
+ * (AES-256-GCM, TOKEN_ENCRYPTION_KEY — decisão 2 da migration 000024).
+ * Sem chave configurada, NÃO grava (nunca texto puro). Fire-and-forget.
+ */
+export async function storeMessage(
+  db: NonNullable<TrackingDeps['db']>,
+  workspaceId: string,
+  conversationId: string,
+  direction: 'in' | 'out',
+  text: string,
+  log: NonNullable<TrackingDeps['log']>
+): Promise<void> {
+  try {
+    const key = process.env.TOKEN_ENCRYPTION_KEY
+    if (!key || !text) { if (!key) log('sem TOKEN_ENCRYPTION_KEY — mensagem NÃO armazenada'); return }
+    await db.from('conversation_messages').insert({
+      workspace_id: workspaceId,
+      conversation_id: conversationId,
+      direction,
+      content_encrypted: encryptToken(text, key),
+    })
+  } catch (e) {
+    log('falha ao armazenar mensagem', { error: (e as Error).message })
+  }
+}
 
 const WINDOW_DAYS = () => Number(process.env.TRACKING_WINDOW_DAYS ?? 7)
 const DEBUG = () => process.env.TRACKING_DEBUG === 'true'
@@ -28,11 +56,53 @@ export interface TrackingDeps {
   log?: (msg: string, extra?: Record<string, unknown>) => void
 }
 
+/**
+ * Ingestão na fila de classificação — Story 5.2 (fire-and-forget).
+ * Re-ingestão inteligente (AC 5.2.2): fila pending/processing → refresh de
+ * created_at; classificação done há <1h → reusa a linha (volta a pending,
+ * retry_count=0); caso contrário INSERT novo com retry_count=0 (AC 5.2.5).
+ */
+export async function enqueueClassification(
+  db: NonNullable<TrackingDeps['db']>,
+  workspaceId: string,
+  conversationId: string,
+  log: NonNullable<TrackingDeps['log']>
+): Promise<void> {
+  try {
+    const { data: last } = await db
+      .from('conversation_classification_queue')
+      .select('id, status, processed_at')
+      .eq('conversation_id', conversationId)
+      .order('created_at', { ascending: false }).limit(1).maybeSingle()
+
+    const oneHourAgo = Date.now() - 3600_000
+    if (last && (last.status === 'pending' || last.status === 'processing')) {
+      await db.from('conversation_classification_queue')
+        .update({ created_at: new Date().toISOString() }).eq('id', last.id)
+      log('fila: refresh de item existente', { id: last.id })
+      return
+    }
+    if (last && last.status === 'done' && last.processed_at &&
+        new Date(last.processed_at).getTime() > oneHourAgo) {
+      await db.from('conversation_classification_queue')
+        .update({ status: 'pending', retry_count: 0, error: null, created_at: new Date().toISOString() })
+        .eq('id', last.id)
+      log('fila: reingestão (<1h) na mesma linha', { id: last.id })
+      return
+    }
+    await db.from('conversation_classification_queue')
+      .insert({ workspace_id: workspaceId, conversation_id: conversationId, retry_count: 0 })
+    log('fila: novo item pending')
+  } catch (e) {
+    log('fila: falha na ingestão (não impacta atendimento)', { error: (e as Error).message })
+  }
+}
+
 export async function processIncomingMessage(
-  params: { workspaceId: string; accountId: string; remoteJid: string },
+  params: { workspaceId: string; accountId: string; remoteJid: string; messageText?: string },
   deps: TrackingDeps = {}
 ): Promise<void> {
-  const { workspaceId, accountId, remoteJid } = params
+  const { workspaceId, accountId, remoteJid, messageText } = params
   const log = deps.log ?? ((m: string, e?: Record<string, unknown>) => { if (DEBUG()) console.log('[tracking]', m, e ?? '') })
   try {
     // só conversas individuais — grupos/status não são leads
@@ -57,10 +127,19 @@ export async function processIncomingMessage(
 
     // 1ª mensagem? (UNIQUE workspace+client+hash)
     const { data: existing } = await db
-      .from('tracked_conversations').select('id')
+      .from('tracked_conversations').select('id, status')
       .eq('workspace_id', workspaceId).eq('client_id', conn.client_id)
       .eq('phone_number_hash', phoneHash).limit(1).maybeSingle()
-    if (existing) { log('conversa já registrada', { id: existing.id }); return }
+    if (existing) {
+      // Story 5.2: mensagem nova de conversa TRACKED → enfileira p/ classificação
+      // (AC 5.2.3: untracked são ignoradas pela fila)
+      if (existing.status === 'tracked') {
+        if (messageText) await storeMessage(db, workspaceId, existing.id, 'in', messageText, log)
+        await enqueueClassification(db, workspaceId, existing.id, log)
+      }
+      else log('conversa untracked — fila ignorada')
+      return
+    }
 
     // LIFO GLOBAL (AC 4.4.3): clique não-casado mais recente entre TODOS os
     // links do workspace na janela — independente do link de origem.
@@ -80,7 +159,7 @@ export async function processIncomingMessage(
     }
 
     const now = new Date().toISOString()
-    const { error: insErr } = await db.from('tracked_conversations').insert({
+    const { data: inserted, error: insErr } = await db.from('tracked_conversations').insert({
       workspace_id: workspaceId,
       client_id: conn.client_id,
       link_id: click?.link_id ?? null,
@@ -89,8 +168,14 @@ export async function processIncomingMessage(
       first_message_at: now,
       origin_confirmed_at: click ? now : null,
       status: click ? 'tracked' : 'untracked',   // AC 4.4.4: nunca ignorada
-    })
+    }).select('id').maybeSingle()
     if (insErr) { log('erro ao inserir conversa', { error: insErr.message }); return }
+
+    // Story 5.2: conversa recém-TRACKED entra na fila + 1ª mensagem armazenada
+    if (click && inserted) {
+      if (messageText) await storeMessage(db, workspaceId, inserted.id, 'in', messageText, log)
+      await enqueueClassification(db, workspaceId, inserted.id, log)
+    }
 
     if (click) {
       await db.from('tracked_clicks').update({ phone_matched: true }).eq('id', click.id)

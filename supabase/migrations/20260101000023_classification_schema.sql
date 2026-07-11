@@ -16,7 +16,6 @@
 --    classificação (job de limpeza: pendência registrada no epic).
 --
 -- ROLLBACK (AC 5.1.6):
---   ALTER TABLE public.workspace_settings DROP COLUMN classification_confidence_threshold;
 --   ALTER TABLE public.tracked_conversations DROP COLUMN classification_status;
 --   DROP TABLE IF EXISTS public.conversation_classifications;
 --   DROP TABLE IF EXISTS public.conversation_classification_queue;
@@ -79,7 +78,8 @@ ALTER TABLE public.tracked_conversations
   ADD COLUMN classification_status text NOT NULL DEFAULT 'pending'
     CHECK (classification_status IN ('pending', 'classified', 'failed'));
 
--- ── 4. Limiar de confiança (Story 5.6, AC 5.6.2) ─────────────────────
-ALTER TABLE public.workspace_settings
-  ADD COLUMN classification_confidence_threshold numeric NOT NULL DEFAULT 0.7
-    CHECK (classification_confidence_threshold >= 0.5 AND classification_confidence_threshold <= 1.0);
+-- ── 4. Limiar de confiança (Story 5.6) ───────────────────────────────
+-- JÁ EXISTE: workspace_settings.classification_confidence_threshold foi criada
+-- na 000000 (initial schema) com default 0.700 e CHECK 0.500–1.000 — exatamente
+-- o AC 5.6.2/5.6.5. Nenhuma ação necessária aqui (1º push falhou por duplicá-la;
+-- rollback transacional manteve o banco limpo).

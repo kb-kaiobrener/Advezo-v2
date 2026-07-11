@@ -137,8 +137,10 @@ async function connect(workspaceId: string, accountId: string): Promise<void> {
     for (const msg of messages) {
       const jid = msg.key?.remoteJid
       if (!jid || msg.key?.fromMe) continue
+      const messageText =
+        msg.message?.conversation ?? msg.message?.extendedTextMessage?.text ?? undefined
       void processIncomingMessage(
-        { workspaceId, accountId, remoteJid: jid },
+        { workspaceId, accountId, remoteJid: jid, messageText },
         { sendText: async (to, text) => { await sock.sendMessage(to, { text }) } }
       )
     }
