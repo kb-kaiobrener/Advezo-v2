@@ -35,7 +35,7 @@
 ## Dev Notes
 
 - AC 1: cuidado com o teste existente "match LIFO" — o mock precisa suportar o novo UPDATE condicional com RETURNING (mesma evolução de harness feita na 3.6/3.8).
-- AC 4: `Sidebar.tsx` é client component e já usa `createSupabaseBrowserClient` (subpath `/browser` — NUNCA o barrel, lição IMPORT-001/002). `conversation_classifications` tem SELECT para authenticated + RLS por workspace — a contagem client-side funciona; o limiar vem de `workspace_settings` (SELECT authenticated já existente? verificar; se 403, buscar o limiar via server e passar por prop/endpoint leve).
+- AC 4: `Sidebar.tsx` é client component e já usa `createSupabaseBrowserClient` (subpath `/browser` — NUNCA o barrel, lição IMPORT-001/002). **Divisão de fontes CONFIRMADA (2026-07-11):** `workspace_settings` NÃO tem GRANT para authenticated em nenhuma migration (nem a original nem a 000023) — leitura e escrita do limiar passam por service role dos dois lados hoje. Portanto: **o limiar vem SEMPRE via servidor** (service role, padrão da página de configurações — prop do layout/server ou endpoint leve autenticado), **nunca** por consulta client-side direta contra `workspace_settings`. Só a contagem de `conversation_classifications` (grant SELECT authenticated + RLS corretos) pode ser client-side.
 - AC 5: hoje a validação de `funnel_stage` já precede a membership; o AC formaliza o padrão completo (shape/tipos) e trava com teste.
 
 ---
@@ -61,3 +61,4 @@
 | Data | Autor | Ação |
 |------|-------|------|
 | 2026-07-11 | Morgan (@pm) | Story de manutenção criada consolidando FU-001, OBS-004, OBS-005 (decisão default: manter derivado + documentar), UI-001 e achado de validação pré-membership. YOLO sem checkpoint; QA simplificado. Status: Ready. |
+| 2026-07-11 | Morgan (@pm) | Revisão pré-dev AC 4: confirmado que `workspace_settings` não tem GRANT para authenticated (nenhuma migration) — instrução condicional trocada por direta: limiar SEMPRE via servidor (service role); só a contagem de `conversation_classifications` pode ser client-side. |
