@@ -1,0 +1,71 @@
+schema: 1
+item: 'EPIC-05'
+slug: classificacao-ia
+title: 'Gate formal Epic 5 — Stories 5.3, 5.4, 5.6 (pré-requisito Epic 6)'
+gate: PASS
+status_reason: >-
+  5.3: gate duplo de ativação verificado no código (CLASSIFICATION_ENABLED=true
+  + ANTHROPIC_API_KEY; sem flag → log DESATIVADO); nada DECRIPTADO é persistido
+  (auditados todos os pontos de escrita). 5.4: IDOR correto nas duas actions;
+  conversation_messages inacessível ao authenticated por qualquer caminho —
+  provado por grep de consumidores (4 legítimos), matriz de grants no remoto
+  (zero authenticated/anon) e teste comportamental com sessão real (SELECT 403,
+  INSERT 403). 5.6: limiar lido do banco nas telas; envio de conversão ao Meta
+  ainda NÃO existe (Epic 6.1) — primitivas do gate NFR-6 (reviewed_by +
+  threshold) prontas, requisito forward registrado. Desvios registrados sem
+  bloqueio (AC 5.4.6, AC 5.6.3/5.6.4, OBS-004).
+reviewer: 'Quinn'
+updated: '2026-07-11'
+
+story_5_3:
+  gate_duplo: 'index.ts exige AMBAS as condições; caso contrário loga "DESATIVADO — exceção 4 pendente" ✅'
+  decriptado_nunca_persistido: >-
+    historico decriptado → só buildPrompt/callModel. Escritas: upsert de
+    classifications (campos estruturados; `reasoning` do modelo NÃO persistido —
+    tabela sem coluna), queue (status/error/retry). callAnthropic sanitizado
+    (status + error.type, corpo descartado — fix aprovado). ✅
+  OBS-004:
+    severity: low
+    finding: >-
+      parseClassification inclui o valor de funnel_stage vindo do MODELO na
+      mensagem de erro ("funnel_stage inválido: X") que vai p/ queue.error —
+      eco teórico de fragmento via output do modelo. Sugerido truncar (ex:
+      20 chars) ou não interpolar o valor. Não bloqueia.
+
+story_5_4:
+  reviewClassification: 'UPDATE .eq(id)+.eq(workspace_id) — IDOR ✅; patch só de campos permitidos; stage validado.'
+  getConversationExcerpt: 'membership → ownership da conversa (IDOR) → decripta EM MEMÓRIA (limit 6, placeholder em falha) — nada persistido ✅'
+  acesso_exclusivo_provado:
+    consumidores_grep: 'classification-review.ts, cron cleanup-messages, classifier.ts, tracking.ts — nenhum outro'
+    grants_remoto: 'conversation_messages: APENAS service_role (zero authenticated/anon)'
+    comportamental_sessao_real: 'authenticated SELECT → 403; INSERT → 403 ✅'
+  UI-001:
+    severity: low
+    tipo: 'achado de UI (não bloqueia)'
+    finding: 'AC 5.4.6 pedia badge de pendentes no menu lateral GLOBAL; implementado no header da seção Rastreamento (links Conversas/Funil/Revisão + contador na página).'
+
+story_5_6:
+  limiar_do_banco: 'revisao/page e funil/page leem workspace_settings (não env) ✅ (metade UI do AC 5.6.3)'
+  envio_meta: >-
+    NÃO EXISTE ainda (grep: nenhum caminho de conversão) — Epic 6.1. Requisito
+    FORWARD para o gate do Epic 6: o envio DEVE checar confidence_score >= limiar
+    OU reviewed_by IS NOT NULL antes de disparar (NFR-6). Primitivas prontas.
+  OBS-005:
+    severity: low
+    finding: >-
+      AC 5.6.3 previa o worker lendo o limiar — o design entrega desfecho
+      equivalente (score bruto salvo; needs_review derivado na leitura). Efeito
+      colateral vs AC 5.6.4: mudar o limiar re-escopa a fila de revisão de itens
+      AINDA NÃO revisados (as classificações em si não mudam). Aceito com
+      registro; Epic 6 deve congelar o limiar no MOMENTO do envio.
+
+fora_de_escopo:
+  - 'Exceção 4 (primeira rodada real Anthropic) — staging com o Kaio.'
+  - 'Stories 5.1/5.2/5.5: cobertas pelas aprovações de wave (migrations revisadas linha a linha; 38/38 worker).'
+
+evidence:
+  suite_worker: '38/38'
+  grants_matrix: 'queue: authenticated SELECT; classifications: SELECT+UPDATE; messages: nenhum'
+  cleanup: 'artefatos QA removidos'
+
+waiver: { active: false }
