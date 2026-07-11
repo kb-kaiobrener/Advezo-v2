@@ -22,6 +22,7 @@ import QRCode from 'qrcode'
 import { createSupabaseServiceClient } from '@advezo/database/service'
 import { CircuitBreaker } from './circuit-breaker.js'
 import { processIncomingMessage } from './tracking.js'
+import { pollClassificationQueue } from './classifier.js'
 import {
   ensureBucket,
   restoreSession,
@@ -36,6 +37,20 @@ const logger = pino({
       ? undefined
       : { target: 'pino-pretty', options: { colorize: true } },
 })
+
+// ── Classificação por IA (Story 5.3) — GATE exceção 4 ─────────────────
+// A primeira rodada REAL contra a Anthropic exige CLASSIFICATION_ENABLED=true
+// (ato explícito de aprovação) além da ANTHROPIC_API_KEY.
+if (process.env.CLASSIFICATION_ENABLED === 'true' && process.env.ANTHROPIC_API_KEY) {
+  const intervalMin = Number(process.env.CLASSIFICATION_POLL_INTERVAL ?? 5)
+  setInterval(() => {
+    void pollClassificationQueue({ log: (m, e) => logger.info(e ?? {}, `[classifier] ${m}`) })
+      .catch((err) => logger.error({ err }, '[classifier] ciclo falhou'))
+  }, intervalMin * 60_000)
+  logger.info({ intervalMin }, '[classifier] polling ATIVO')
+} else {
+  logger.info('[classifier] DESATIVADO (CLASSIFICATION_ENABLED != true) — exceção 4 pendente')
+}
 
 const PORT = Number(process.env.PORT) || 3000
 
