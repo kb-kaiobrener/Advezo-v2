@@ -202,6 +202,28 @@ Decisão consciente (2026-07-11): manter derivado (`score < limiar AND reviewed_
 
 ---
 
+### TD-007 — Crons da Vercel reduzidos para 1×/dia (limite do plano Hobby) ⚠️ TEMPORÁRIO
+
+| Campo | Valor |
+|-------|-------|
+| **Severidade** | MEDIUM — degradação funcional consciente |
+| **Origem** | Deploy bloqueado na Vercel (Hobby não aceita cron < diário) — 2026-07-11 |
+| **Arquivo** | `apps/web/vercel.json` |
+
+**Descrição:** Frequências REDUZIDAS temporariamente para destravar o deploy — **não é o desenho real**:
+
+| Cron | Desenho (story) | Temporário |
+|---|---|---|
+| `send-reports` (3.5) | `0 * * * *` (horário) | `0 8 * * *` |
+| `send-alerts` (3.6) | `*/15 * * * *` (15 min) | `0 9 * * *` |
+| `cleanup-messages` (5.3) | diário | `30 3 * * *` (inalterado) |
+
+Horários espaçados de propósito. **Impactos:** relatórios com `send_time` ≠ 8h UTC não disparam no horário configurado (o `scheduleShouldFireNow` compara a hora exata — na prática só schedules das 8h rodam); alertas de saldo podem atrasar até 24h (desenho: ≤15 min).
+
+**Resolução pendente (decisão do Kaio):** (a) upgrade do plano Vercel (Pro aceita as frequências originais), ou (b) migrar send-reports/send-alerts para o worker do Railway (setInterval + guard, padrão do classificador). Ao resolver, restaurar as schedules originais e revisar o acoplamento hora-exata do `scheduleShouldFireNow`.
+
+---
+
 ## Items Resolvidos
 
 *(nenhum ainda — TD-005 parcial, TD-006 aberto)*
