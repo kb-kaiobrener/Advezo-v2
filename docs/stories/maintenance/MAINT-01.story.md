@@ -2,7 +2,7 @@
 
 ## Status
 
-**Status:** InReview
+**Status:** Done
 **Tipo:** Manutenção (fora dos epics numerados)
 **Origem:** Itens registrados em gates e tech-debt (FU-001, OBS-004, OBS-005, UI-001 + achado de revisão)
 **Criada em:** 2026-07-11
@@ -66,7 +66,21 @@
 
 ## QA Results
 
-*(gate simplificado)*
+### Review Date: 2026-07-11 — Quinn (gate simplificado)
+
+#### Verdicto: **PASS**
+
+| AC | Verificação | Resultado |
+|---|---|---|
+| 1 | Reexecução independente: claim perdido → `candB` (nunca o mesmo `click_id`); sem sobra → untracked; revisão do código (claim antes do INSERT, UPDATE incondicional removido, janela residual documentada) | ✅ 41/41 worker |
+| 2 | Teste com stage malicioso ("...cpf...") — zero vazamento na mensagem persistida | ✅ |
+| 3 | Documentação presente em `classifier.ts` (cabeçalho) e `tech-debt.md` (NOTA-OBS-005), incluindo o dever do Epic 6 de congelar o limiar no envio; default sem migration respeitado | ✅ |
+| 4 | **Conferência visual real:** seed de classificação pendente (score 0.55 < 0.7) → HTML do `/dashboard` com sessão de gestor contém item "Rastreamento" no menu global + badge âmbar "1" | ✅ |
+| 5 | 4/4 testes: zero chamadas a auth/banco em ação/stage/valor inválidos; IDOR (`id`+`workspace_id`) no caminho válido | ✅ |
+
+Banco limpo pós-verificação (clients/classifications/conversations: 0). FU-001, OBS-004, OBS-005 e UI-001 podem ser considerados encerrados nos seus registros de origem.
+
+Status: InReview → Done.
 
 ---
 
@@ -76,4 +90,5 @@
 |------|-------|------|
 | 2026-07-11 | Morgan (@pm) | Story de manutenção criada consolidando FU-001, OBS-004, OBS-005 (decisão default: manter derivado + documentar), UI-001 e achado de validação pré-membership. YOLO sem checkpoint; QA simplificado. Status: Ready. |
 | 2026-07-11 | Morgan (@pm) | Revisão pré-dev AC 4: confirmado que `workspace_settings` não tem GRANT para authenticated (nenhuma migration) — instrução condicional trocada por direta: limiar SEMPRE via servidor (service role); só a contagem de `conversation_classifications` pode ser client-side. |
+| 2026-07-11 | Quinn (@qa) | Gate simplificado PASS — 5/5 ACs: testes reexecutados (41/41 worker + 4/4 web), docs do AC 3 verificados, conferência visual real do badge (seed score 0.55 → chip âmbar "1" no HTML do menu com sessão de gestor). Banco limpo. FU-001/OBS-004/OBS-005/UI-001 encerrados. Status: InReview → Done. |
 | 2026-07-11 | Dex (@dev) | Implementação YOLO completa, 5/5 ACs, sem paradas (AC 3 no default, sem migration). Claim atômico com loop de candidatos; erro de parse sem valor do modelo; decisão OBS-005 documentada; badge no menu global via layout server; validação pré-membership com testes de zero-chamadas. Worker 41/41; web +4; typecheck/lint limpos. Status: Ready → InReview. |
